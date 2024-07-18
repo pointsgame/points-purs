@@ -9,6 +9,7 @@ import Data.Foldable as Foldable
 import Data.FunctorWithIndex as FunctorWithIndex
 import Data.List as List
 import Data.Maybe as Maybe
+import Data.Newtype (unwrap)
 import Data.String as String
 import Data.String.CodePoints (codePointFromChar)
 import Data.String.CodeUnits as CodeUnits
@@ -17,7 +18,7 @@ import Data.Tuple.Nested as NestedTuple
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Exception (Error, error)
-import Field (Field, emptyField, putPoint)
+import Field (Field, emptyField, isPuttingAllowed, putPoint)
 import Player as Player
 import Test.Spec (Spec, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -52,12 +53,49 @@ simpleSurround =
   in
     it "simple surround" $ do
       field <- constructField image
-      field.scoreRed `shouldEqual` 1
-      field.scoreBlack `shouldEqual` 0
-      map Tuple.snd field.lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) field.lastSurroundChain `shouldEqual` Maybe.Just 4
-      bind field.lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 0 1)
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 0 1)
+
+surroundEmptyTerritory :: Spec Unit
+surroundEmptyTerritory =
+  let
+    image =
+      " .a. \
+      \ a.a \
+      \ .a. "
+  in
+    it "surround empty territory" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 0
+      (unwrap field).scoreBlack `shouldEqual` 0
+      (unwrap field).lastSurroundChain `shouldEqual` Maybe.Nothing
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 1 1)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 0 1)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 1 0)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 1 2)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 1)
+
+movePriority :: Spec Unit
+movePriority =
+  let
+    image =
+      " .aB. \
+      \ aCaB \
+      \ .aB. "
+  in
+    it "move priority" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 0
+      (unwrap field).scoreBlack `shouldEqual` 1
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 1)
 
 main :: Effect Unit
 main = launchAff_ $ runSpec [ consoleReporter ] do
   simpleSurround
+  surroundEmptyTerritory
+  movePriority

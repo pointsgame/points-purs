@@ -10,6 +10,7 @@ workspace:
         - lists
         - ordered-collections
         - prelude
+        - strings
         - tuples
       test_dependencies:
         - spec

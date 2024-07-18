@@ -8,6 +8,7 @@ package:
     - lists
     - arrays
     - integers
+    - strings
     - ordered-collections
   test:
     main: Test.Main
