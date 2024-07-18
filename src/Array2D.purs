@@ -41,7 +41,8 @@ toY :: Int -> Int -> Int
 toY w idx = idx `div` w
 
 index :: forall a. Array2D a -> Tuple.Tuple Int Int -> Maybe.Maybe a
-index (Array2D a) (Tuple.Tuple x y) = a.array Array.!! (toIndex a.width x y)
+index (Array2D a) (Tuple.Tuple x y) | x >= 0 && y >= 0 && x < a.width && y < height (Array2D a) = a.array Array.!! (toIndex a.width x y)
+index _ _ = Maybe.Nothing
 
 infixl 8 index as !!
 
