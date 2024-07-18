@@ -11,7 +11,9 @@ package:
     - ordered-collections
   test:
     main: Test.Main
-    dependencies: []
+    dependencies:
+      - unicode
+      - spec
 workspace:
   packageSet:
     registry: 55.0.0
