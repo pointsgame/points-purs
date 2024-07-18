@@ -324,73 +324,78 @@ putPoint pos player field
         let
           enemyPlayer = nextPlayer player
           point = UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos
-          (Tuple.Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase field pos enemyPlayer
-          inputPoints = getInputPoints field pos player
-          captures =
-            List.mapMaybe
-              ( \(Tuple.Tuple chainPos capturedPos) ->
-                  do
-                    chain <- buildChain field pos chainPos player
-                    let
-                      captured = List.fromFoldable $ getInsideRing field capturedPos chain
-                      capturedCount' = count (\pos' -> isPlayersPoint field pos' enemyPlayer) captured
-                      freedCount' = count (\pos' -> isCapturedPoint field pos' player) captured
-                    pure $ NestedTuple.tuple4 chain captured capturedCount' freedCount'
-              )
-              inputPoints
-          { yes: realCaptures, no: emptyCaptures } = List.partition ((_ /= 0) <<< NestedTuple.get3) captures
-          capturedCount = Foldable.sum $ map NestedTuple.get3 realCaptures
-          freedCount = Foldable.sum $ map NestedTuple.get4 realCaptures
-          newEmptyBase = List.concatMap (List.filter (\pos' -> (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') == EmptyCell) <<< NestedTuple.get2) emptyCaptures
-          realCaptured = List.concatMap NestedTuple.get2 realCaptures
-          captureChain = mergeCaptureChains pos $ map NestedTuple.get1 realCaptures
-          newScoreRed = if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
-          newScoreBlack = if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
           newMoves = (Tuple.Tuple pos player) List.: field.moves
         in
-          if point == EmptyBaseCell enemyPlayer then
-            if not $ List.null captures then
-              { scoreRed: newScoreRed
-              , scoreBlack: newScoreBlack
-              , moves: newMoves
-              , lastSurroundChain: Maybe.Just (Tuple.Tuple captureChain player)
-              , cells:
-                  Array2D.updateAtIndices
-                    ( map (\pos' -> Tuple.Tuple pos' EmptyCell) (List.fromFoldable enemyEmptyBase)
-                        <> (Tuple.Tuple pos $ PointCell player)
-                          List.: map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
-                    )
-                    field.cells
-              }
-            else
-              { scoreRed: if player == Red then field.scoreRed else field.scoreRed + 1
-              , scoreBlack: if player == Black then field.scoreBlack else field.scoreBlack + 1
-              , moves: newMoves
-              , lastSurroundChain: Maybe.Just (Tuple.Tuple (NonEmptyList.toList enemyEmptyBaseChain) enemyPlayer)
-              , cells:
-                  Array2D.updateAtIndices
-                    ( List.snoc
-                        (map (\pos' -> Tuple.Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
-                        (Tuple.Tuple pos $ BaseCell enemyPlayer true)
-                    )
-                    field.cells
-              }
-          else if point == EmptyBaseCell player then
+          if point == EmptyBaseCell player then
             field
               { moves = newMoves
               , lastSurroundChain = Maybe.Nothing
               , cells = Array2D.updateAtIndices (List.singleton $ Tuple.Tuple pos $ PointCell player) field.cells
               }
           else
-            { scoreRed: newScoreRed
-            , scoreBlack: newScoreBlack
-            , moves: newMoves
-            , lastSurroundChain: if List.null captureChain then Maybe.Nothing else Maybe.Just (Tuple.Tuple captureChain player)
-            , cells:
-                Array2D.updateAtIndices
-                  ( (Tuple.Tuple pos $ PointCell player)
-                      List.: map (\pos' -> Tuple.Tuple pos' $ EmptyBaseCell player) newEmptyBase
-                      <> map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
+            let
+              inputPoints = getInputPoints field pos player
+              captures =
+                List.mapMaybe
+                  ( \(Tuple.Tuple chainPos capturedPos) ->
+                      do
+                        chain <- buildChain field pos chainPos player
+                        let
+                          captured = List.fromFoldable $ getInsideRing field capturedPos chain
+                          capturedCount' = count (\pos' -> isPlayersPoint field pos' enemyPlayer) captured
+                          freedCount' = count (\pos' -> isCapturedPoint field pos' player) captured
+                        pure $ NestedTuple.tuple4 chain captured capturedCount' freedCount'
                   )
-                  field.cells
-            }
+                  inputPoints
+              { yes: realCaptures, no: emptyCaptures } = List.partition ((_ /= 0) <<< NestedTuple.get3) captures
+              capturedCount = Foldable.sum $ map NestedTuple.get3 realCaptures
+              freedCount = Foldable.sum $ map NestedTuple.get4 realCaptures
+              realCaptured = List.concatMap NestedTuple.get2 realCaptures
+              captureChain = mergeCaptureChains pos $ map NestedTuple.get1 realCaptures
+            in
+              if point == EmptyBaseCell enemyPlayer then
+                let
+                  (Tuple.Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase field pos enemyPlayer
+                in
+                  if not $ List.null captures then
+                    { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
+                    , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
+                    , moves: newMoves
+                    , lastSurroundChain: Maybe.Just (Tuple.Tuple captureChain player)
+                    , cells:
+                        Array2D.updateAtIndices
+                          ( map (\pos' -> Tuple.Tuple pos' EmptyCell) (List.fromFoldable enemyEmptyBase)
+                              <> (Tuple.Tuple pos $ PointCell player)
+                                List.: map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
+                          )
+                          field.cells
+                    }
+                  else
+                    { scoreRed: if player == Red then field.scoreRed else field.scoreRed + 1
+                    , scoreBlack: if player == Black then field.scoreBlack else field.scoreBlack + 1
+                    , moves: newMoves
+                    , lastSurroundChain: Maybe.Just (Tuple.Tuple (NonEmptyList.toList enemyEmptyBaseChain) enemyPlayer)
+                    , cells:
+                        Array2D.updateAtIndices
+                          ( List.snoc
+                              (map (\pos' -> Tuple.Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
+                              (Tuple.Tuple pos $ BaseCell enemyPlayer true)
+                          )
+                          field.cells
+                    }
+              else
+                let
+                  newEmptyBase = List.concatMap (List.filter (\pos' -> (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') == EmptyCell) <<< NestedTuple.get2) emptyCaptures
+                in
+                  { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
+                  , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
+                  , moves: newMoves
+                  , lastSurroundChain: if List.null captureChain then Maybe.Nothing else Maybe.Just (Tuple.Tuple captureChain player)
+                  , cells:
+                      Array2D.updateAtIndices
+                        ( (Tuple.Tuple pos $ PointCell player)
+                            List.: map (\pos' -> Tuple.Tuple pos' $ EmptyBaseCell player) newEmptyBase
+                            <> map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
+                        )
+                        field.cells
+                  }
