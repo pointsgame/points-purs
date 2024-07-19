@@ -298,7 +298,7 @@ getEmptyBase field startPos player = Tuple.Tuple emptyBaseChain $ Set.filter (\p
           chains = List.mapMaybe (\(Tuple.Tuple chainPos _) -> buildChain field pos chainPos player) inputPoints
           result = List.find (posInsideRing startPos) chains
         in
-          Maybe.fromMaybe (getEmptyBaseChain (w pos)) result
+          Maybe.fromMaybe' (\_ -> getEmptyBaseChain (w pos)) result
 
 capture :: Cell -> Player -> Cell
 capture point player =
