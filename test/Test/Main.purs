@@ -94,8 +94,323 @@ movePriority =
       map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
       bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 1)
 
+movePriorityBig :: Spec Unit
+movePriorityBig =
+  let
+    image =
+      " .B.. \
+      \ BaB. \
+      \ aCaB \
+      \ .aB. "
+  in
+    it "move priority, big" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 0
+      (unwrap field).scoreBlack `shouldEqual` 2
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 6
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 2)
+
+onionSurroundings :: Spec Unit
+onionSurroundings =
+  let
+    image =
+      " ...c... \
+      \ ..cBc.. \
+      \ .cBaBc. \
+      \ ..cBc.. \
+      \ ...c... "
+  in
+    it "onion surroundings" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 4
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+
+deepOnionSurroundings :: Spec Unit
+deepOnionSurroundings =
+  let
+    image =
+      " ...D... \
+      \ ..DcD.. \
+      \ .DcBcD. \
+      \ DcBaBcD \
+      \ .DcBcD. \
+      \ ..DcD.. \
+      \ ...D... "
+  in
+    it "deep onion surroundings" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 0
+      (unwrap field).scoreBlack `shouldEqual` 9
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 12
+
+applyControlSurroundingInSameTurn :: Spec Unit
+applyControlSurroundingInSameTurn =
+  let
+    image =
+      " .a. \
+      \ aBa \
+      \ .a. "
+  in
+    it "apply 'control' surrounding in same turn" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+
+doubleSurround :: Spec Unit
+doubleSurround =
+  let
+    image =
+      " .a.a. \
+      \ aAbAa \
+      \ .a.a. "
+  in
+    it "double surround" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 2
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 1)
+
+doubleSurroundWithEmptyPart :: Spec Unit
+doubleSurroundWithEmptyPart =
+  let
+    image =
+      " .b.b.. \
+      \ b.zAb. \
+      \ .b.b.. "
+  in
+    it "double surround with empty part" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 1)
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 1 1)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 3 1)
+
+shouldNotLeaveEmptyInside :: Spec Unit -- TODO: check with another last point
+shouldNotLeaveEmptyInside =
+  let
+    image =
+      " .aaaa.. \
+      \ a....a. \
+      \ a.b...a \
+      \ .z.bC.a \
+      \ a.b...a \
+      \ a....a. \
+      \ .aaaa.. "
+  in
+    it "should not leave empty inside" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 18
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 3)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 4)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 2)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 1 3)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 3 3)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 1 1)
+
+surroundInOppositeTurn :: Spec Unit
+surroundInOppositeTurn =
+  let
+    image =
+      " .a. \
+      \ aBa \
+      \ .a. "
+  in
+    it "surround in opposite turn" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+
+partlySurroundInOppositeTurn :: Spec Unit
+partlySurroundInOppositeTurn =
+  let
+    image =
+      " .a.. \
+      \ aBa. \
+      \ .a.a \
+      \ ..a. "
+  in
+    it "partly surround in opposite turn" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 2 2)
+
+holeInsideSurrounding :: Spec Unit
+holeInsideSurrounding =
+  let
+    image =
+      " ....c.... \
+      \ ...c.c... \
+      \ ..c...c.. \
+      \ .c..a..c. \
+      \ c..a.a..c \
+      \ .c..a..c. \
+      \ ..c...c.. \
+      \ ...cBc... \
+      \ ....d.... "
+  in
+    it "a hole inside a surrounding" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 16
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 4 8)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 4)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 1)
+
+holeInsideSurroundingAfterOppositeTurnSurrounding :: Spec Unit
+holeInsideSurroundingAfterOppositeTurnSurrounding =
+  let
+    image =
+      " ....b.... \
+      \ ...b.b... \
+      \ ..b...b.. \
+      \ .b..a..b. \
+      \ b..a.a..b \
+      \ .b..a..b. \
+      \ ..b...b.. \
+      \ ...bCb... \
+      \ ....b.... "
+  in
+    it "a hole inside a surrounding, after opposite turn surrounding" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 16
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 4)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 1)
+
+surroundingDoesNotExpand :: Spec Unit
+surroundingDoesNotExpand =
+  let
+    image =
+      " ....a.... \
+      \ ...a.a... \
+      \ ..a.a.a.. \
+      \ .a.a.a.a. \
+      \ a.a.aBa.a \
+      \ .a.a.a.a. \
+      \ ..a.a.a.. \
+      \ ...a.a... \
+      \ ....a.... "
+  in
+    it "surrounding does not expand" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 6 3)
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 4 3)
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 4 5)
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 6 5)
+      shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 5 4)
+
+twoSurroundingsWithCommonBorder :: Spec Unit
+twoSurroundingsWithCommonBorder =
+  let
+    image =
+      " .a.. \
+      \ aAa. \
+      \ .bAa \
+      \ ..a. "
+  in
+    it "2 surroundings with common border" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 2
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 6
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 2)
+
+twoSurroundingsWithCommonDot :: Spec Unit
+twoSurroundingsWithCommonDot =
+  let
+    image =
+      " .a.a. \
+      \ aBcBa \
+      \ .a.a. "
+  in
+    it "2 surroundings with common dot" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 2
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+
+threeSurroundingsWithCommonBorders :: Spec Unit
+threeSurroundingsWithCommonBorders =
+  let
+    image =
+      " ..a.. \
+      \ .aAa. \
+      \ ..bAa \
+      \ .aAa. \
+      \ ..a.. "
+  in
+    it "3 surroundings with common borders" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 3
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 2)
+
+twoSurroundingsWithCommonDotOneBorderlineEmptyPlace :: Spec Unit
+twoSurroundingsWithCommonDotOneBorderlineEmptyPlace =
+  let
+    image =
+      " ..a.. \
+      \ .aBa. \
+      \ ..c.a \
+      \ .aBa. \
+      \ ..a.. "
+  in
+    it "2 surroundings with common dot, one borderline empty place" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 2
+      (unwrap field).scoreBlack `shouldEqual` 0
+      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
+      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+
 main :: Effect Unit
 main = launchAff_ $ runSpec [ consoleReporter ] do
   simpleSurround
   surroundEmptyTerritory
   movePriority
+  movePriorityBig
+  onionSurroundings
+  deepOnionSurroundings
+  applyControlSurroundingInSameTurn
+  doubleSurround
+  doubleSurroundWithEmptyPart
+  shouldNotLeaveEmptyInside
+  surroundInOppositeTurn
+  partlySurroundInOppositeTurn
+  holeInsideSurrounding
+  holeInsideSurroundingAfterOppositeTurnSurrounding
+  surroundingDoesNotExpand
+  twoSurroundingsWithCommonBorder
+  twoSurroundingsWithCommonDot
+  threeSurroundingsWithCommonBorders
+  twoSurroundingsWithCommonDotOneBorderlineEmptyPlace
