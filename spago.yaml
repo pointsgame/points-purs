@@ -10,6 +10,10 @@ package:
     - integers
     - strings
     - ordered-collections
+    - canvas
+    - halogen
+    - halogen-hooks
+    - halogen-css
   test:
     main: Test.Main
     dependencies:

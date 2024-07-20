@@ -12,11 +12,15 @@ module Field
   , Field(Field)
   , width
   , height
+  , moves
+  , lastSurroundChain
   , isFull
   , isPuttingAllowed
   , isPlayer
   , emptyField
   , putPoint
+  , lastPlayer
+  , putNextPoint
   ) where
 
 import Prelude
@@ -29,6 +33,7 @@ import Data.List (List, (:))
 import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
+import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (class Newtype)
 import Data.Set as Set
@@ -84,7 +89,7 @@ newtype Field =
     { scoreRed :: Int
     , scoreBlack :: Int
     , moves :: List (Tuple Pos Player)
-    , lastSurroundChain :: Maybe.Maybe (Tuple (List Pos) Player)
+    , lastSurroundChain :: Maybe (Tuple (List Pos) Player)
     , cells :: Array2D.Array2D Cell
     }
 
@@ -109,6 +114,12 @@ width (Field field) = Array2D.width field.cells
 
 height :: Field -> Int
 height (Field field) = Array2D.height field.cells
+
+moves :: Field -> List (Tuple Pos Player)
+moves (Field field) = field.moves
+
+lastSurroundChain :: Field -> Maybe (Tuple (List Pos) Player)
+lastSurroundChain (Field field) = field.lastSurroundChain
 
 isFull :: Field -> Boolean
 isFull (Field field) = Array2D.notElem EmptyCell field.cells
@@ -209,7 +220,7 @@ square chain = square' chain 0
     { head: h1, tail: List.Cons h2 t } -> square' (NonEmptyList.cons' h2 t) (acc + skewProduct h1 h2)
   skewProduct (Tuple x1 y1) (Tuple x2 y2) = x1 * y2 - y1 * x2
 
-buildChain :: Field -> Pos -> Pos -> Player -> Maybe.Maybe (NonEmptyList Pos)
+buildChain :: Field -> Pos -> Pos -> Player -> Maybe (NonEmptyList Pos)
 buildChain field startPos nextPos player = if NonEmptyList.length chain > 2 && square chain > 0 then Maybe.Just chain else Maybe.Nothing
   where
   chain = getChain startPos $ NonEmptyList.cons' nextPos $ List.singleton startPos
@@ -341,7 +352,7 @@ mergeCaptureChains pos chains =
           List.Nil $ NonEmptyList.toList $ NonEmptyList.concat chains'
       else mergeCaptureChains' $ NonEmptyList.snoc' (NonEmptyList.tail chains') firstChain
 
-putPoint :: Pos -> Player -> Field -> Maybe.Maybe Field
+putPoint :: Pos -> Player -> Field -> Maybe Field
 putPoint pos player (Field field)
   | not (isPuttingAllowed (Field field) pos) = Maybe.Nothing
   | otherwise =
@@ -427,3 +438,9 @@ putPoint pos player (Field field)
                           )
                           field.cells
                     }
+
+lastPlayer :: Field -> Maybe Player
+lastPlayer (Field field) = map Tuple.snd $ List.head field.moves
+
+putNextPoint :: Pos -> Field -> Maybe Field
+putNextPoint pos field = putPoint pos (Maybe.fromMaybe Red $ map nextPlayer $ lastPlayer field) field
