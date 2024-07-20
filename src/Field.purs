@@ -25,36 +25,39 @@ import Array2D as Array2D
 import Data.Array as Array
 import Data.Foldable as Foldable
 import Data.Int as Int
+import Data.List (List, (:))
 import Data.List as List
+import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe as Maybe
 import Data.Newtype (class Newtype)
 import Data.Set as Set
 import Data.String.CodeUnits (fromCharArray)
+import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
 import Data.Tuple.Nested as NestedTuple
 import Partial.Unsafe as UnsafePartial
 import Player (Player(Red, Black), nextPlayer)
 
-type Pos = Tuple.Tuple Int Int
+type Pos = Tuple Int Int
 
-count :: forall a. (a -> Boolean) -> List.List a -> Int
+count :: forall a. (a -> Boolean) -> List a -> Int
 count f = List.length <<< List.filter f
 
-uniq :: forall a. Eq a => List.List a -> List.List a
+uniq :: forall a. Eq a => List a -> List a
 uniq = map NonEmptyList.head <<< List.group
 
 n :: Pos -> Pos
-n (Tuple.Tuple x y) = Tuple.Tuple x (y + 1)
+n (Tuple x y) = Tuple x (y + 1)
 
 s :: Pos -> Pos
-s (Tuple.Tuple x y) = Tuple.Tuple x (y - 1)
+s (Tuple x y) = Tuple x (y - 1)
 
 w :: Pos -> Pos
-w (Tuple.Tuple x y) = Tuple.Tuple (x - 1) y
+w (Tuple x y) = Tuple (x - 1) y
 
 e :: Pos -> Pos
-e (Tuple.Tuple x y) = Tuple.Tuple (x + 1) y
+e (Tuple x y) = Tuple (x + 1) y
 
 nw :: Pos -> Pos
 nw = n <<< w
@@ -80,8 +83,8 @@ newtype Field =
   Field
     { scoreRed :: Int
     , scoreBlack :: Int
-    , moves :: List.List (Tuple.Tuple Pos Player)
-    , lastSurroundChain :: Maybe.Maybe (Tuple.Tuple (List.List Pos) Player)
+    , moves :: List (Tuple Pos Player)
+    , lastSurroundChain :: Maybe.Maybe (Tuple (List Pos) Player)
     , cells :: Array2D.Array2D Cell
     }
 
@@ -91,7 +94,7 @@ instance Show Field where
   show (Field field) =
     fromCharArray $ flip Array.concatMap (Array.range 0 $ height $ Field field) $ \y ->
       flip map (Array.range 0 $ (_ + 1) $ width $ Field field) \x ->
-        case field.cells Array2D.!! (Tuple.Tuple x y) of
+        case field.cells Array2D.!! (Tuple x y) of
           Maybe.Just EmptyCell -> '.'
           Maybe.Just (EmptyBaseCell _) -> '.'
           Maybe.Just (PointCell Red) -> 'X'
@@ -111,7 +114,7 @@ isFull :: Field -> Boolean
 isFull (Field field) = Array2D.notElem EmptyCell field.cells
 
 isInside :: Field -> Pos -> Boolean
-isInside field (Tuple.Tuple x y) = x >= 0 && y >= 0 && x < width field && y < height field
+isInside field (Tuple x y) = x >= 0 && y >= 0 && x < width field && y < height field
 
 isPuttingAllowed :: Field -> Pos -> Boolean
 isPuttingAllowed (Field field) pos =
@@ -152,7 +155,7 @@ wave field startPos f = wave' Set.empty (Set.singleton startPos)
               List.fromFoldable front
         )
         passed
-  neighborhood pos = n pos List.: s pos List.: w pos List.: e pos List.: List.Nil
+  neighborhood pos = n pos : s pos : w pos : e pos : List.Nil
 
 emptyField :: Int -> Int -> Field
 emptyField width' height' =
@@ -198,15 +201,15 @@ getNextPos centerPos pos =
       0, 1 -> w pos
       1, 1 -> w pos
 
-square :: NonEmptyList.NonEmptyList Pos -> Int
+square :: NonEmptyList Pos -> Int
 square chain = square' chain 0
   where
   square' list acc = case NonEmptyList.uncons list of
     { head: h, tail: List.Nil } -> acc + skewProduct h (NonEmptyList.head chain)
     { head: h1, tail: List.Cons h2 t } -> square' (NonEmptyList.cons' h2 t) (acc + skewProduct h1 h2)
-  skewProduct (Tuple.Tuple x1 y1) (Tuple.Tuple x2 y2) = x1 * y2 - y1 * x2
+  skewProduct (Tuple x1 y1) (Tuple x2 y2) = x1 * y2 - y1 * x2
 
-buildChain :: Field -> Pos -> Pos -> Player -> Maybe.Maybe (NonEmptyList.NonEmptyList Pos)
+buildChain :: Field -> Pos -> Pos -> Player -> Maybe.Maybe (NonEmptyList Pos)
 buildChain field startPos nextPos player = if NonEmptyList.length chain > 2 && square chain > 0 then Maybe.Just chain else Maybe.Nothing
   where
   chain = getChain startPos $ NonEmptyList.cons' nextPos $ List.singleton startPos
@@ -225,42 +228,42 @@ buildChain field startPos nextPos player = if NonEmptyList.length chain > 2 && s
     | isPlayer field pos player = pos
     | otherwise = getNextPlayerPos centerPos (UnsafePartial.unsafePartial $ getNextPos centerPos pos)
 
-getInputPoints :: Field -> Pos -> Player -> List.List (Tuple.Tuple Pos Pos)
+getInputPoints :: Field -> Pos -> Player -> List (Tuple Pos Pos)
 getInputPoints field pos player =
   let
     list1 =
       if not $ isPlayer field (w pos) player then
-        if isPlayer field (sw pos) player then List.singleton $ Tuple.Tuple (sw pos) (w pos)
-        else if isPlayer field (s pos) player then List.singleton $ Tuple.Tuple (s pos) (w pos)
+        if isPlayer field (sw pos) player then List.singleton $ Tuple (sw pos) (w pos)
+        else if isPlayer field (s pos) player then List.singleton $ Tuple (s pos) (w pos)
         else List.Nil
       else
         List.Nil
     list2 =
       if not $ isPlayer field (n pos) player then
-        if isPlayer field (nw pos) player then Tuple.Tuple (nw pos) (n pos) List.: list1
-        else if isPlayer field (w pos) player then Tuple.Tuple (w pos) (n pos) List.: list1
+        if isPlayer field (nw pos) player then Tuple (nw pos) (n pos) : list1
+        else if isPlayer field (w pos) player then Tuple (w pos) (n pos) : list1
         else list1
       else
         list1
     list3 =
       if not $ isPlayer field (e pos) player then
-        if isPlayer field (ne pos) player then Tuple.Tuple (ne pos) (e pos) List.: list2
-        else if isPlayer field (n pos) player then Tuple.Tuple (n pos) (e pos) List.: list2
+        if isPlayer field (ne pos) player then Tuple (ne pos) (e pos) : list2
+        else if isPlayer field (n pos) player then Tuple (n pos) (e pos) : list2
         else list2
       else
         list2
     list4 =
       if not $ isPlayer field (s pos) player then
-        if isPlayer field (se pos) player then Tuple.Tuple (se pos) (s pos) List.: list3
-        else if isPlayer field (e pos) player then Tuple.Tuple (e pos) (s pos) List.: list3
+        if isPlayer field (se pos) player then Tuple (se pos) (s pos) : list3
+        else if isPlayer field (e pos) player then Tuple (e pos) (s pos) : list3
         else list3
       else
         list3
   in
     list4
 
-posInsideRing :: Pos -> NonEmptyList.NonEmptyList Pos -> Boolean
-posInsideRing (Tuple.Tuple x y) ring =
+posInsideRing :: Pos -> NonEmptyList Pos -> Boolean
+posInsideRing (Tuple x y) ring =
   case NonEmptyList.fromList $ uniq $ map Tuple.snd $ NonEmptyList.filter ((_ <= x) <<< Tuple.fst) ring of
     Maybe.Just coords ->
       let
@@ -273,21 +276,21 @@ posInsideRing (Tuple.Tuple x y) ring =
           | otherwise = coords
       in
         Int.odd
-          $ count (\(Tuple.Tuple a (Tuple.Tuple b c)) -> b == y && ((a < b && c > b) || (a > b && c < b)))
+          $ count (\(Tuple a (Tuple b c)) -> b == y && ((a < b && c > b) || (a > b && c < b)))
           $
             List.zip (NonEmptyList.toList coords')
           $ List.zip (NonEmptyList.tail coords') (List.drop 1 $ NonEmptyList.tail coords')
     Maybe.Nothing -> false
 
-getInsideRing :: Field -> Pos -> NonEmptyList.NonEmptyList Pos -> Set.Set Pos
+getInsideRing :: Field -> Pos -> NonEmptyList Pos -> Set.Set Pos
 getInsideRing field startPos ring =
   let
     ringSet = Set.fromFoldable ring
   in
     wave field startPos $ flip Set.member ringSet >>> not
 
-getEmptyBase :: Field -> Pos -> Player -> Tuple.Tuple (NonEmptyList.NonEmptyList Pos) (Set.Set Pos)
-getEmptyBase field startPos player = Tuple.Tuple emptyBaseChain $ Set.filter (\pos -> isEmptyBase field pos player) $ getInsideRing field startPos emptyBaseChain
+getEmptyBase :: Field -> Pos -> Player -> Tuple (NonEmptyList Pos) (Set.Set Pos)
+getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> isEmptyBase field pos player) $ getInsideRing field startPos emptyBaseChain
   where
   emptyBaseChain = getEmptyBaseChain (w startPos)
   getEmptyBaseChain pos
@@ -295,7 +298,7 @@ getEmptyBase field startPos player = Tuple.Tuple emptyBaseChain $ Set.filter (\p
     | otherwise =
         let
           inputPoints = getInputPoints field pos player
-          chains = List.mapMaybe (\(Tuple.Tuple chainPos _) -> buildChain field pos chainPos player) inputPoints
+          chains = List.mapMaybe (\(Tuple chainPos _) -> buildChain field pos chainPos player) inputPoints
           result = List.find (posInsideRing startPos) chains
         in
           Maybe.fromMaybe' (\_ -> getEmptyBaseChain (w pos)) result
@@ -313,7 +316,7 @@ capture point player =
       | otherwise -> BaseCell player false
     EmptyBaseCell _ -> BaseCell player false
 
-mergeCaptureChains :: Pos -> List.List (NonEmptyList.NonEmptyList Pos) -> List.List Pos
+mergeCaptureChains :: Pos -> List (NonEmptyList Pos) -> List Pos
 mergeCaptureChains pos chains =
   Maybe.maybe
     (List.concatMap NonEmptyList.toList chains)
@@ -333,7 +336,7 @@ mergeCaptureChains pos chains =
               if p /= pos && List.elem p acc then
                 List.dropWhile (_ /= p) acc
               else
-                p List.: acc
+                p : acc
           )
           List.Nil $ NonEmptyList.toList $ NonEmptyList.concat chains'
       else mergeCaptureChains' $ NonEmptyList.snoc' (NonEmptyList.tail chains') firstChain
@@ -346,20 +349,20 @@ putPoint pos player (Field field)
         let
           enemyPlayer = nextPlayer player
           point = UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos
-          newMoves = (Tuple.Tuple pos player) List.: field.moves
+          newMoves = (Tuple pos player) : field.moves
         in
           if point == EmptyBaseCell player then
             Field field
               { moves = newMoves
               , lastSurroundChain = Maybe.Nothing
-              , cells = Array2D.updateAtIndices (List.singleton $ Tuple.Tuple pos $ PointCell player) field.cells
+              , cells = Array2D.updateAtIndices (List.singleton $ Tuple pos $ PointCell player) field.cells
               }
           else
             let
               inputPoints = getInputPoints (Field field) pos player
               captures =
                 List.mapMaybe
-                  ( \(Tuple.Tuple chainPos capturedPos) ->
+                  ( \(Tuple chainPos capturedPos) ->
                       do
                         chain <- buildChain (Field field) pos chainPos player
                         let
@@ -377,19 +380,19 @@ putPoint pos player (Field field)
             in
               if point == EmptyBaseCell enemyPlayer then
                 let
-                  (Tuple.Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase (Field field) pos enemyPlayer
+                  (Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase (Field field) pos enemyPlayer
                 in
                   if not $ List.null captures then
                     Field
                       { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
                       , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
                       , moves: newMoves
-                      , lastSurroundChain: Maybe.Just (Tuple.Tuple captureChain player)
+                      , lastSurroundChain: Maybe.Just (Tuple captureChain player)
                       , cells:
                           Array2D.updateAtIndices
-                            ( map (\pos' -> Tuple.Tuple pos' EmptyCell) (List.fromFoldable enemyEmptyBase)
-                                <> (Tuple.Tuple pos $ PointCell player)
-                                  List.: map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
+                            ( map (\pos' -> Tuple pos' EmptyCell) (List.fromFoldable enemyEmptyBase)
+                                <> (Tuple pos $ PointCell player)
+                                  : map (\pos' -> (Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
                             )
                             field.cells
                       }
@@ -398,12 +401,12 @@ putPoint pos player (Field field)
                       { scoreRed: if player == Red then field.scoreRed else field.scoreRed + 1
                       , scoreBlack: if player == Black then field.scoreBlack else field.scoreBlack + 1
                       , moves: newMoves
-                      , lastSurroundChain: Maybe.Just (Tuple.Tuple (NonEmptyList.toList enemyEmptyBaseChain) enemyPlayer)
+                      , lastSurroundChain: Maybe.Just (Tuple (NonEmptyList.toList enemyEmptyBaseChain) enemyPlayer)
                       , cells:
                           Array2D.updateAtIndices
                             ( List.snoc
-                                (map (\pos' -> Tuple.Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
-                                (Tuple.Tuple pos $ BaseCell enemyPlayer true)
+                                (map (\pos' -> Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
+                                (Tuple pos $ BaseCell enemyPlayer true)
                             )
                             field.cells
                       }
@@ -415,12 +418,12 @@ putPoint pos player (Field field)
                     { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
                     , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
                     , moves: newMoves
-                    , lastSurroundChain: if List.null captureChain then Maybe.Nothing else Maybe.Just (Tuple.Tuple captureChain player)
+                    , lastSurroundChain: if List.null captureChain then Maybe.Nothing else Maybe.Just (Tuple captureChain player)
                     , cells:
                         Array2D.updateAtIndices
-                          ( (Tuple.Tuple pos $ PointCell player)
-                              List.: map (\pos' -> Tuple.Tuple pos' $ EmptyBaseCell player) newEmptyBase
-                              <> map (\pos' -> (Tuple.Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
+                          ( (Tuple pos $ PointCell player)
+                              : map (\pos' -> Tuple pos' $ EmptyBaseCell player) newEmptyBase
+                              <> map (\pos' -> (Tuple pos' $ capture (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') player)) realCaptured
                           )
                           field.cells
                     }
