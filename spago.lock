@@ -15,6 +15,7 @@ workspace:
         - ordered-collections
         - prelude
         - strings
+        - transformers
         - tuples
       test_dependencies:
         - spec

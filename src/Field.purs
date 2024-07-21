@@ -95,6 +95,9 @@ newtype Field =
 
 derive instance Newtype Field _
 
+instance Eq Field where
+  eq field1 field2 = width field1 == width field2 && height field1 == height field2 && moves field1 == moves field2
+
 instance Show Field where
   show (Field field) =
     fromCharArray $ flip Array.concatMap (Array.range 0 $ height $ Field field) $ \y ->

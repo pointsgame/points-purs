@@ -9,6 +9,7 @@ package:
     - arrays
     - integers
     - strings
+    - transformers
     - ordered-collections
     - canvas
     - halogen
