@@ -192,7 +192,6 @@ getFirstNextPos centerPos pos =
       0, -1 -> ne centerPos
       1, -1 -> ne centerPos
       (-1), 0 -> se centerPos
-      0, 0 -> se centerPos
       1, 0 -> nw centerPos
       (-1), 1 -> sw centerPos
       0, 1 -> sw centerPos
@@ -209,7 +208,6 @@ getNextPos centerPos pos =
       0, -1 -> e pos
       1, -1 -> n pos
       (-1), 0 -> s pos
-      0, 0 -> s pos
       1, 0 -> n pos
       (-1), 1 -> s pos
       0, 1 -> w pos
