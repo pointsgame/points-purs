@@ -1,12 +1,78 @@
 workspace:
   packages:
-    oppai-client-2:
+    field:
+      path: field
+      dependencies:
+        - arrays
+        - integers
+        - lists
+        - prelude
+        - strings
+        - tuples
+      test_dependencies:
+        - spec
+        - unicode
+      build_plan:
+        - aff
+        - ansi
+        - arrays
+        - avar
+        - bifunctors
+        - catenable-lists
+        - const
+        - contravariant
+        - control
+        - datetime
+        - distributive
+        - effect
+        - either
+        - enums
+        - exceptions
+        - exists
+        - foldable-traversable
+        - fork
+        - free
+        - functions
+        - functors
+        - gen
+        - identity
+        - integers
+        - invariant
+        - lazy
+        - lists
+        - maybe
+        - mmorph
+        - newtype
+        - nonempty
+        - now
+        - numbers
+        - ordered-collections
+        - orders
+        - parallel
+        - partial
+        - pipes
+        - prelude
+        - profunctor
+        - refs
+        - safe-coerce
+        - spec
+        - st
+        - strings
+        - tailrec
+        - transformers
+        - tuples
+        - type-equality
+        - unfoldable
+        - unicode
+        - unsafe-coerce
+    points:
       path: ./
       dependencies:
         - arrays
         - canvas
         - console
         - effect
+        - field
         - halogen
         - halogen-css
         - halogen-hooks
@@ -17,9 +83,7 @@ workspace:
         - strings
         - transformers
         - tuples
-      test_dependencies:
-        - spec
-        - unicode
+      test_dependencies: []
       build_plan:
         - aff
         - ansi
@@ -43,6 +107,7 @@ workspace:
         - enums
         - exceptions
         - exists
+        - field
         - foldable-traversable
         - foreign
         - foreign-object

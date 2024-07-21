@@ -1,0 +1,14 @@
+package:
+  name: field
+  dependencies:
+    - prelude
+    - tuples
+    - lists
+    - arrays
+    - integers
+    - strings
+  test:
+    main: Test.Main
+    dependencies:
+      - unicode
+      - spec

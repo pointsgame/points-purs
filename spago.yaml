@@ -1,6 +1,7 @@
 package:
-  name: oppai-client-2
+  name: points
   dependencies:
+    - field
     - console
     - effect
     - prelude
@@ -15,11 +16,6 @@ package:
     - halogen
     - halogen-hooks
     - halogen-css
-  test:
-    main: Test.Main
-    dependencies:
-      - unicode
-      - spec
 workspace:
   packageSet:
     registry: 55.0.0
