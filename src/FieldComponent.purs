@@ -9,7 +9,7 @@ import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Data.Foldable (traverse_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
@@ -57,15 +57,15 @@ toPos canvas field drawSettings x y = do
     posY = toGamePosY y
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
 
-fieldComponent
-  :: forall query output m
-   . MonadAff m
-  => H.Component query (NonEmptyList Field) output m
-fieldComponent =
-  Hooks.component \_ input -> Hooks.do
-    size /\ sizeId <- Hooks.useState Nothing
+data Output = Click Pos
 
-    fields /\ fieldsId <- Hooks.useState input
+fieldComponent
+  :: forall query m
+   . MonadAff m
+  => H.Component query (NonEmptyList Field) Output m
+fieldComponent =
+  Hooks.component \tokens input -> Hooks.do
+    size /\ sizeId <- Hooks.useState Nothing
 
     Hooks.useLifecycleEffect do
       window <- liftEffect HTML.window
@@ -82,7 +82,7 @@ fieldComponent =
           )
       pure $ Just $ Hooks.unsubscribe subscriptionId
 
-    Hooks.captures { size, fields } Hooks.useTickEffect do
+    Hooks.captures { size, input } Hooks.useTickEffect do
       liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
         let canvasElement = HTMLCanvasElement.toElement $ toHTMLCanvasElement canvas
         clientWidth canvasElement >>= setCanvasWidth canvas
@@ -90,7 +90,7 @@ fieldComponent =
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2D canvas
-        draw defaultDrawSettings width height fields context
+        draw defaultDrawSettings width height input context
       pure Nothing
 
     Hooks.pure $ HH.canvas
@@ -101,9 +101,9 @@ fieldComponent =
       , HE.onClick \e -> void $ runMaybeT $ do
           pos <- mapMaybeT liftEffect $ do
             canvas <- wrap $ getCanvasElementById "canvas"
-            wrap $ toPos canvas (NonEmptyList.head fields) defaultDrawSettings (offsetX e) (offsetY e)
-          lift $ Hooks.modify_ fieldsId $ \fields' -> fromMaybe fields'
-            $ map (\x -> NonEmptyList.cons x fields')
-            $ Field.putNextPoint pos
-            $ NonEmptyList.head fields'
+            wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
+          when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
+            $ lift
+            $ Hooks.raise tokens.outputToken
+            $ Click pos
       ]
