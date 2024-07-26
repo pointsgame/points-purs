@@ -68,9 +68,12 @@ workspace:
     points:
       path: ./
       dependencies:
+        - argonaut
+        - argonaut-generic
         - arrays
         - canvas
         - console
+        - coroutines
         - effect
         - field
         - halogen
@@ -83,10 +86,16 @@ workspace:
         - strings
         - transformers
         - tuples
+        - web-socket
       test_dependencies: []
       build_plan:
         - aff
         - ansi
+        - argonaut
+        - argonaut-codecs
+        - argonaut-core
+        - argonaut-generic
+        - argonaut-traversals
         - arraybuffer-types
         - arrays
         - avar
@@ -98,6 +107,7 @@ workspace:
         - const
         - contravariant
         - control
+        - coroutines
         - css
         - datetime
         - distributive
@@ -114,6 +124,7 @@ workspace:
         - fork
         - free
         - freeap
+        - freet
         - functions
         - functors
         - gen
@@ -145,6 +156,7 @@ workspace:
         - pipes
         - prelude
         - profunctor
+        - profunctor-lenses
         - quickcheck
         - quickcheck-laws
         - random
@@ -170,6 +182,7 @@ workspace:
         - web-file
         - web-html
         - web-pointerevents
+        - web-socket
         - web-storage
         - web-touchevents
         - web-uievents
@@ -705,6 +718,63 @@ packages:
       - foldable-traversable
       - lists
       - strings
+  argonaut:
+    type: registry
+    version: 9.0.0
+    integrity: sha256-9sHzkzcFkaMUa9+3FjIybJDYnHtY4Jp4zHOJ84qPTXo=
+    dependencies:
+      - argonaut-codecs
+      - argonaut-core
+      - argonaut-traversals
+  argonaut-codecs:
+    type: registry
+    version: 9.1.0
+    integrity: sha256-N6efXByUeg848ompEqJfVvZuZPfdRYDGlTDFn0G0Oh8=
+    dependencies:
+      - argonaut-core
+      - arrays
+      - effect
+      - foreign-object
+      - identity
+      - integers
+      - maybe
+      - nonempty
+      - ordered-collections
+      - prelude
+      - record
+  argonaut-core:
+    type: registry
+    version: 7.0.0
+    integrity: sha256-RC82GfAjItydxrO24cdX373KHVZiLqybu19b5X8u7B4=
+    dependencies:
+      - arrays
+      - control
+      - either
+      - foreign-object
+      - functions
+      - gen
+      - maybe
+      - nonempty
+      - prelude
+      - strings
+      - tailrec
+  argonaut-generic:
+    type: registry
+    version: 8.0.0
+    integrity: sha256-WCqRWoomRKg5BFZnGBS4k4SqBX84fy/X1aJzMyaIeP0=
+    dependencies:
+      - argonaut-codecs
+      - argonaut-core
+      - prelude
+      - record
+  argonaut-traversals:
+    type: registry
+    version: 10.0.0
+    integrity: sha256-9nSfqR70rjiNWVVsCoK+jrm9dmyZTx89IKNYO6uNUIk=
+    dependencies:
+      - argonaut-codecs
+      - argonaut-core
+      - profunctor-lenses
   arraybuffer-types:
     type: registry
     version: 3.0.2
@@ -815,6 +885,14 @@ packages:
     dependencies:
       - newtype
       - prelude
+  coroutines:
+    type: registry
+    version: 7.0.0
+    integrity: sha256-w0ftoTTR6fIkCgQctMzeTJdbY2lenEiklt0TRZeCqY8=
+    dependencies:
+      - freet
+      - parallel
+      - profunctor
   css:
     type: registry
     version: 6.0.0
@@ -995,6 +1073,21 @@ packages:
       - exists
       - gen
       - lists
+  freet:
+    type: registry
+    version: 7.0.0
+    integrity: sha256-zkL6wU4ZPq8xz1kGFxoliWqyhBksepMJTyA68VEBaJo=
+    dependencies:
+      - aff
+      - bifunctors
+      - effect
+      - either
+      - exists
+      - free
+      - prelude
+      - tailrec
+      - transformers
+      - tuples
   functions:
     type: registry
     version: 6.0.0
@@ -1346,6 +1439,31 @@ packages:
       - newtype
       - prelude
       - tuples
+  profunctor-lenses:
+    type: registry
+    version: 8.0.0
+    integrity: sha256-K7f29rHRHgVSb2Y/PaSKtfYPriP6n87BJNO7EhsZHas=
+    dependencies:
+      - arrays
+      - bifunctors
+      - const
+      - control
+      - distributive
+      - either
+      - foldable-traversable
+      - foreign-object
+      - functors
+      - identity
+      - lists
+      - maybe
+      - newtype
+      - ordered-collections
+      - partial
+      - prelude
+      - profunctor
+      - record
+      - transformers
+      - tuples
   quickcheck:
     type: registry
     version: 8.0.1
@@ -1617,6 +1735,13 @@ packages:
       - prelude
       - web-dom
       - web-uievents
+  web-socket:
+    type: registry
+    version: 4.0.0
+    integrity: sha256-xz46Q/rdJPNdLhq8QsyfxBoc2CTRXzgbwAj8oqV//C4=
+    dependencies:
+      - arraybuffer-types
+      - web-file
   web-storage:
     type: registry
     version: 5.0.0

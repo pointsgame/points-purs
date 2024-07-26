@@ -14,13 +14,12 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.Hooks as Hooks
 import Halogen.VDom.Driver (runUI)
+import Message as Message
 import Type.Proxy (Proxy(..))
+import Web.Socket.WebSocket as WS
 
-main :: Effect Unit
-main =
-  HA.runHalogenAff do
-    body <- HA.awaitBody
-    runUI appComponent unit body
+-- wsSender :: WS.WebSocket -> Message.Request -> Effect Unit
+-- wsSender socket request = WS.sendString socket request
 
 _field :: Proxy "field"
 _field = Proxy
@@ -43,3 +42,10 @@ appComponent =
       fieldComponent
       fields
       handleFieldOutput
+
+main :: Effect Unit
+main = do
+  connection <- WS.create "ws://127.0.0.1:8080" []
+  HA.runHalogenAff do
+    body <- HA.awaitBody
+    runUI appComponent unit body

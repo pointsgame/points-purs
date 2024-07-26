@@ -13,6 +13,10 @@ package:
     - transformers
     - ordered-collections
     - canvas
+    - web-socket
+    - argonaut
+    - argonaut-generic
+    - coroutines
     - halogen
     - halogen-hooks
     - halogen-css
