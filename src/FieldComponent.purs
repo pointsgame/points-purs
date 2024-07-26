@@ -4,8 +4,8 @@ import Prelude
 
 import CSS.Geometry as CSSGeometry
 import CSS.Size as CSSSize
-import Control.Monad.Cont (lift)
 import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
+import Control.Monad.Trans.Class (lift)
 import Data.Foldable (traverse_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList

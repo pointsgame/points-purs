@@ -2,7 +2,7 @@ module Render where
 
 import Prelude
 
-import Data.Foldable (traverse_)
+import Data.Foldable (traverse_, for_)
 import Data.Int (floor, toNumber)
 import Data.List (List, (:))
 import Data.List as List
@@ -133,7 +133,7 @@ draw
     setLineWidth context $ toNumber gridThickness
     setStrokeStyle context gridColor
     when (gridThickness `mod` 2 == 1) $ translate context { translateX: 0.5, translateY: 0.0 }
-    flip traverse_ verticalLines $ \x -> do
+    for_ verticalLines \x -> do
       beginPath context
       moveTo context x shiftY
       lineTo context x (shiftY + height')
@@ -141,20 +141,20 @@ draw
     when (gridThickness `mod` 2 == 1) $ do
       setTransform context { a: 1.0, b: 0.0, c: 0.0, d: 1.0, e: 0.0, f: 0.0 }
       translate context { translateX: 0.0, translateY: 0.5 }
-    flip traverse_ horizontalLines $ \y -> do
+    for_ horizontalLines \y -> do
       beginPath context
       moveTo context shiftX y
       lineTo context (shiftX + width') y
       stroke context
     when (gridThickness `mod` 2 == 1) $ setTransform context { a: 1.0, b: 0.0, c: 0.0, d: 1.0, e: 0.0, f: 0.0 }
     --Rendering points.
-    flip traverse_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
+    for_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setFillStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       fill context
     --Rendering last point.
-    flip traverse_ (List.head $ Field.moves headField) $ \(Tuple (Tuple x y) player) -> do
+    for_ (List.head $ Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setLineWidth context 2.0
       setStrokeStyle context $ if player == Player.Red then redColor else blackColor
@@ -163,50 +163,50 @@ draw
     --Rendering little surroundings.
     setGlobalAlpha context fillingAlpha
     when fullFill
-      $ flip traverse_
+      $ for_
           ( List.zip
               (NonEmptyList.toList $ NonEmptyList.reverse fields)
               (map (List.head <<< Field.moves) $ NonEmptyList.tail $ NonEmptyList.reverse fields)
           )
-      $ \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
-          setFillStyle context $ if player == Player.Red then redColor else blackColor
-          if Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.e pos) player then
-            polygon context $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.e pos) : List.Nil
-          else do
-            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.se pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.se pos) : List.Nil
-            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.se pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.se pos) : List.Nil
-          if Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.n pos) player then
-            polygon context $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.n pos) : List.Nil
-          else do
-            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.ne pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.ne pos) : List.Nil
-            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.ne pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.ne pos) : List.Nil
-          if Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.w pos) player then
-            polygon context $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.w pos) : List.Nil
-          else do
-            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.nw pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.nw pos) : List.Nil
-            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.nw pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.nw pos) : List.Nil
-          if Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.s pos) player then
-            polygon context $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.s pos) : List.Nil
-          else do
-            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.sw pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.sw pos) : List.Nil
-            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.sw pos) player)
-              $ polygon context
-              $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.sw pos) : List.Nil
+          \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
+            setFillStyle context $ if player == Player.Red then redColor else blackColor
+            if Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.e pos) player then
+              polygon context $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.e pos) : List.Nil
+            else do
+              when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.se pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.se pos) : List.Nil
+              when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.se pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.se pos) : List.Nil
+            if Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.n pos) player then
+              polygon context $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.n pos) : List.Nil
+            else do
+              when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.ne pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.ne pos) : List.Nil
+              when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.ne pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.ne pos) : List.Nil
+            if Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.w pos) player then
+              polygon context $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.w pos) : List.Nil
+            else do
+              when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.nw pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.nw pos) : List.Nil
+              when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.nw pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.nw pos) : List.Nil
+            if Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.s pos) player then
+              polygon context $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.s pos) : List.Nil
+            else do
+              when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.sw pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.sw pos) : List.Nil
+              when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.sw pos) player)
+                $ polygon context
+                $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.sw pos) : List.Nil
     --Rendering surroundings.
-    flip traverse_ (List.concatMap (List.fromFoldable <<< Field.lastSurroundChain) $ NonEmptyList.toList $ NonEmptyList.reverse fields) $ \(Tuple chain player) -> do
+    for_ (List.concatMap (List.fromFoldable <<< Field.lastSurroundChain) $ NonEmptyList.toList $ NonEmptyList.reverse fields) \(Tuple chain player) -> do
       setFillStyle context $ if player == Player.Red then redColor else blackColor
       polygon context $ map fromPos chain
