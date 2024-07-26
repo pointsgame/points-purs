@@ -23,6 +23,11 @@ package:
     - halogen-hooks
     - halogen-css
 workspace:
+  backend:
+    cmd: "purs-backend-es"
+    args:
+      - "build"
+      - "--int-tags"
   packageSet:
     registry: 55.0.0
   extraPackages:
