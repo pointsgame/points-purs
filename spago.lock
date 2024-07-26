@@ -68,11 +68,13 @@ workspace:
     points:
       path: ./
       dependencies:
+        - aff-coroutines
         - argonaut
         - argonaut-generic
         - arrays
         - canvas
         - console
+        - coroutine-transducers
         - coroutines
         - effect
         - field
@@ -90,6 +92,7 @@ workspace:
       test_dependencies: []
       build_plan:
         - aff
+        - aff-coroutines
         - ansi
         - argonaut
         - argonaut-codecs
@@ -107,6 +110,7 @@ workspace:
         - const
         - contravariant
         - control
+        - coroutine-transducers
         - coroutines
         - css
         - datetime
@@ -686,7 +690,12 @@ workspace:
       yoga-tree: 1.0.0
       z3: 0.0.2
       zipperarray: 2.0.0
-  extra_packages: {}
+  extra_packages:
+    coroutine-transducers:
+      git: https://github.com/martyall/purescript-coroutine-transducers.git
+      ref: 62530afbcc7277d9a432709fe245fbf14da0072f
+      dependencies:
+        - coroutines
 packages:
   aff:
     type: registry
@@ -710,6 +719,15 @@ packages:
       - tailrec
       - transformers
       - unsafe-coerce
+  aff-coroutines:
+    type: registry
+    version: 9.0.0
+    integrity: sha256-7OEJhIW91eT5I20w4yEwmeSMHShRSPG2tPVOGA9vi1g=
+    dependencies:
+      - aff
+      - avar
+      - coroutines
+      - effect
   ansi:
     type: registry
     version: 7.0.0
@@ -885,6 +903,12 @@ packages:
     dependencies:
       - newtype
       - prelude
+  coroutine-transducers:
+    type: git
+    url: https://github.com/martyall/purescript-coroutine-transducers.git
+    rev: 62530afbcc7277d9a432709fe245fbf14da0072f
+    dependencies:
+      - coroutines
   coroutines:
     type: registry
     version: 7.0.0
