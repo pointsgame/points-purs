@@ -4,6 +4,8 @@ import Prelude
 
 import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, (.:), (:=), (~>))
 import Data.Either (Either(..))
+import Data.Generic.Rep (class Generic)
+import Data.Show.Generic (genericShow)
 
 type GameId = String
 
@@ -22,6 +24,13 @@ data Request
   | UnsubscribeRequest GameId
   | PutPointRequest GameId Coordinate
 
+derive instance Generic Request _
+
+derive instance Eq Request
+
+instance Show Request where
+  show = genericShow
+
 instance EncodeJson Request where
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId
@@ -35,6 +44,13 @@ data Response
   | CreateResponse GameId FieldSize
   | StartResponse GameId
   | PutPointResponse GameId Coordinate
+
+derive instance Generic Response _
+
+derive instance Eq Response
+
+instance Show Response where
+  show = genericShow
 
 instance DecodeJson Response where
   decodeJson json = do

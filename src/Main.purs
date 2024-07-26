@@ -97,6 +97,8 @@ main = do
   HA.runHalogenAff do
     body <- HA.awaitBody
     CR.runProcess $ (CRT.toProducer $ wsTransducer connection) CR.$$ do
-      init <- CR.await
+      openGames /\ games <- CR.await >>= case _ of
+        Message.InitResponse openGames games -> pure $ openGames /\ games
+        other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
       io <- lift $ runUI appComponent unit body
       CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
