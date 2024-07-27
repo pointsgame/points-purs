@@ -111,15 +111,22 @@ appComponent
    . MonadAff m
   => H.Component AppQuery (Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
-  Hooks.component \{ queryToken, outputToken } (openGames' /\ games') -> Hooks.do
-    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) $ openGames'
-    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) games'
+  Hooks.component \{ queryToken, outputToken } (openGamesInput /\ gamesInput) -> Hooks.do
+    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) $ openGamesInput
+    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) gamesInput
 
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
           Message.CreateResponse gameId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId size
+          Message.StartResponse gameId -> do
+            openGames' <- Hooks.get openGamesId
+            case Map.lookup gameId openGames' of
+              Maybe.Nothing -> liftEffect $ Exception.throwException $ Exception.error $ "No open game with id " <> gameId
+              Maybe.Just size -> do
+                Hooks.modify_ openGamesId $ Map.delete gameId
+                Hooks.modify_ gamesId $ Map.insert gameId size
           _ -> pure unit
         pure $ Maybe.Just a
 
