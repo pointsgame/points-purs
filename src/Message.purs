@@ -9,11 +9,13 @@ import Data.Show.Generic (genericShow)
 
 type GameId = String
 
+type PlayerId = String
+
 type FieldSize = { width :: Int, height :: Int }
 
 type Coordinate = { x :: Int, y :: Int }
 
-type OpenGame = { gameId :: GameId, size :: FieldSize }
+type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
 type Game = { gameId :: GameId, size :: FieldSize }
 
@@ -41,7 +43,7 @@ instance EncodeJson Request where
 data Response
   = InitResponse (Array OpenGame) (Array Game)
   | GameInitResponse
-  | CreateResponse GameId FieldSize
+  | CreateResponse GameId PlayerId FieldSize
   | StartResponse GameId
   | PutPointResponse GameId Coordinate
 
@@ -59,7 +61,7 @@ instance DecodeJson Response where
     case command of
       "Init" -> InitResponse <$> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> pure $ GameInitResponse
-      "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "size"
+      "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Start" -> StartResponse <$> obj .: "gameId"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate"
       other -> Left $ UnexpectedValue $ encodeJson other
