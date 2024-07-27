@@ -17,7 +17,6 @@ package:
     - argonaut
     - argonaut-generic
     - coroutines
-    - coroutine-transducers
     - aff-coroutines
     - halogen
     - halogen-hooks
@@ -30,9 +29,4 @@ workspace:
       - "--int-tags"
   packageSet:
     registry: 55.0.0
-  extraPackages:
-    coroutine-transducers:
-      git: https://github.com/martyall/purescript-coroutine-transducers.git
-      ref: 62530afbcc7277d9a432709fe245fbf14da0072f
-      dependencies:
-        - coroutines
+  extraPackages: {}

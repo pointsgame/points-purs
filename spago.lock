@@ -74,7 +74,6 @@ workspace:
         - arrays
         - canvas
         - console
-        - coroutine-transducers
         - coroutines
         - effect
         - field
@@ -110,7 +109,6 @@ workspace:
         - const
         - contravariant
         - control
-        - coroutine-transducers
         - coroutines
         - css
         - datetime
@@ -690,12 +688,7 @@ workspace:
       yoga-tree: 1.0.0
       z3: 0.0.2
       zipperarray: 2.0.0
-  extra_packages:
-    coroutine-transducers:
-      git: https://github.com/martyall/purescript-coroutine-transducers.git
-      ref: 62530afbcc7277d9a432709fe245fbf14da0072f
-      dependencies:
-        - coroutines
+  extra_packages: {}
 packages:
   aff:
     type: registry
@@ -903,12 +896,6 @@ packages:
     dependencies:
       - newtype
       - prelude
-  coroutine-transducers:
-    type: git
-    url: https://github.com/martyall/purescript-coroutine-transducers.git
-    rev: 62530afbcc7277d9a432709fe245fbf14da0072f
-    dependencies:
-      - coroutines
   coroutines:
     type: registry
     version: 7.0.0

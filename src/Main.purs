@@ -5,7 +5,6 @@ import Prelude
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
-import Control.Coroutine.Transducer as CRT
 import Control.Monad.Except (runExcept)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
@@ -41,28 +40,22 @@ refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
 
 -- TODO: reconnect: https://stackoverflow.com/questions/22431751/websocket-how-to-automatically-reconnect-after-it-dies
-wsProducer :: WS.WebSocket -> CR.Producer String Aff Unit
+-- TODO: refresh on error: https://stackoverflow.com/questions/14787480/page-refresh-in-case-of-javascript-errors
+wsProducer :: WS.WebSocket -> CR.Producer Message.Response Aff Unit
 wsProducer socket = CRA.produce \emitter -> do
   listener <- EET.eventListener \ev ->
     for_ (ME.fromEvent ev) \msgEvent ->
-      for_ (Either.either (const Maybe.Nothing) Maybe.Just $ runExcept $ readString $ ME.data_ msgEvent) \msg ->
-        emit emitter msg
+      for_ (Either.either (const Maybe.Nothing) Maybe.Just $ runExcept $ readString $ ME.data_ msgEvent) \msg -> do
+        response <- Either.either
+          (\e -> liftEffect $ Exception.throwException $ Exception.error $ "Invalid response: " <> show e)
+          pure
+          (parseJson msg >>= decodeJson)
+        emit emitter response
   EET.addEventListener
     WSET.onMessage
     listener
     false
     (WS.toEventTarget socket)
-
--- TODO: refresh on error: https://stackoverflow.com/questions/14787480/page-refresh-in-case-of-javascript-errors
-wsTransducer :: WS.WebSocket -> CRT.Transducer Void Message.Response Aff Unit
-wsTransducer socket = void $ CRT.fromProducer (wsProducer socket) CRT.=>= CRT.transformM
-  ( \s ->
-      Either.either
-        (\e -> liftEffect $ Exception.throwException $ Exception.error $ "Invalid response: " <> show e)
-        pure
-        $
-          parseJson s >>= decodeJson
-  )
 
 wsSender :: WS.WebSocket -> Message.Request -> Effect Unit
 wsSender socket = WS.sendString socket <<< stringify <<< encodeJson
@@ -96,7 +89,7 @@ main = do
   connection <- WS.create "ws://127.0.0.1:8080" []
   HA.runHalogenAff do
     body <- HA.awaitBody
-    CR.runProcess $ (CRT.toProducer $ wsTransducer connection) CR.$$ do
+    CR.runProcess $ wsProducer connection CR.$$ do
       openGames /\ games <- CR.await >>= case _ of
         Message.InitResponse openGames games -> pure $ openGames /\ games
         other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
