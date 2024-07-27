@@ -12,7 +12,11 @@ import Data.Array as Array
 import Data.Either as Either
 import Data.Foldable (for_)
 import Data.List.NonEmpty as NonEmptyList
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe as Maybe
+import Data.Tuple (Tuple(..))
+import Data.Tuple as Tuple
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -26,8 +30,8 @@ import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.Subscription as HS
 import Halogen.Hooks as Hooks
+import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Type.Proxy (Proxy(..))
@@ -67,25 +71,27 @@ _games :: Proxy "games"
 _games = Proxy
 
 gamesComponent
-  :: forall output m
+  :: forall query output m
    . MonadAff m
-  => H.Component AppQuery (Array Message.Game) output m
+  => H.Component query (Map Message.GameId Message.FieldSize) output m
 gamesComponent =
   Hooks.component \_ games -> Hooks.do
-    Hooks.pure $ HH.div_ $
-      map (\game -> HH.div_ $ [ HH.text game.gameId ]) games
+    Hooks.pure $ HH.div_
+      $ map (\(Tuple gameId _) -> HH.div_ $ [ HH.text gameId ])
+      $ Map.toUnfoldableUnordered games
 
 _openGames :: Proxy "openGames"
 _openGames = Proxy
 
 openGamesComponent
-  :: forall output m
+  :: forall query output m
    . MonadAff m
-  => H.Component AppQuery (Array Message.OpenGame) output m
+  => H.Component query (Map Message.GameId Message.FieldSize) output m
 openGamesComponent =
   Hooks.component \_ openGames -> Hooks.do
-    Hooks.pure $ HH.div_ $
-      map (\openGame -> HH.div_ $ [ HH.text openGame.gameId ]) openGames
+    Hooks.pure $ HH.div_
+      $ map (\(Tuple gameId _) -> HH.div_ $ [ HH.text gameId ])
+      $ Map.toUnfoldableUnordered openGames
 
 _createGames :: Proxy "createGames"
 _createGames = Proxy
@@ -106,14 +112,14 @@ appComponent
   => H.Component AppQuery (Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
   Hooks.component \{ queryToken, outputToken } (openGames' /\ games') -> Hooks.do
-    openGames /\ openGamesId <- Hooks.useState openGames'
-    games /\ gamesId <- Hooks.useState games'
+    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) $ openGames'
+    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) games'
 
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
           Message.CreateResponse gameId size ->
-            Hooks.modify_ openGamesId $ Array.cons { gameId, size }
+            Hooks.modify_ openGamesId $ Map.insert gameId size
           _ -> pure unit
         pure $ Maybe.Just a
 
