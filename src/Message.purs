@@ -5,7 +5,27 @@ import Prelude
 import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (:=), (~>))
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
+import Data.Newtype (class Newtype, wrap)
 import Data.Show.Generic (genericShow)
+import Player (Player)
+import Player as Player
+
+newtype JsonPlayer = JsonPlayer Player
+
+derive instance Newtype JsonPlayer _
+
+instance DecodeJson JsonPlayer where
+  decodeJson json = decodeJson json >>= case _ of
+    "Red" -> pure $ wrap Player.Red
+    "Black" -> pure $ wrap Player.Black
+    other -> Left $ UnexpectedValue $ encodeJson other
+
+derive instance Generic JsonPlayer _
+
+derive instance Eq JsonPlayer
+
+instance Show JsonPlayer where
+  show = genericShow
 
 type GameId = String
 
@@ -14,6 +34,8 @@ type PlayerId = String
 type FieldSize = { width :: Int, height :: Int }
 
 type Coordinate = { x :: Int, y :: Int }
+
+type Move = { coordinate :: Coordinate, player :: JsonPlayer }
 
 type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
@@ -42,10 +64,10 @@ instance EncodeJson Request where
 
 data Response
   = InitResponse (Array OpenGame) (Array Game)
-  | GameInitResponse
+  | GameInitResponse GameId (Array Move)
   | CreateResponse GameId PlayerId FieldSize
   | StartResponse GameId
-  | PutPointResponse GameId Coordinate
+  | PutPointResponse GameId Coordinate JsonPlayer
 
 derive instance Generic Response _
 
@@ -60,8 +82,8 @@ instance DecodeJson Response where
     command <- obj .: "command"
     case command of
       "Init" -> InitResponse <$> obj .: "openGames" <*> obj .: "games"
-      "GameInit" -> pure $ GameInitResponse
+      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Start" -> StartResponse <$> obj .: "gameId"
-      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate"
+      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"
       other -> Left $ UnexpectedValue $ encodeJson other

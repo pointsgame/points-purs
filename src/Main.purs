@@ -11,10 +11,12 @@ import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.Either as Either
 import Data.Foldable (for_)
+import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe as Maybe
+import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
 import Data.Tuple.Nested ((/\), type (/\))
@@ -22,7 +24,9 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
+import Effect.Class.Console as Console
 import Effect.Exception as Exception
+import Field (Field)
 import Field as Field
 import FieldComponent (fieldComponent, Output(..))
 import Foreign (readString)
@@ -71,26 +75,26 @@ _games :: Proxy "games"
 _games = Proxy
 
 gamesComponent
-  :: forall query output m
+  :: forall query m
    . MonadAff m
-  => H.Component query (Map Message.GameId Message.FieldSize) output m
+  => H.Component query (Map Message.GameId Message.FieldSize) Message.GameId m
 gamesComponent =
-  Hooks.component \_ games -> Hooks.do
+  Hooks.component \{ outputToken } games -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId _) -> HH.div_ $ [ HH.text gameId ])
+      $ map (\(Tuple gameId _) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text gameId ])
       $ Map.toUnfoldableUnordered games
 
 _openGames :: Proxy "openGames"
 _openGames = Proxy
 
 openGamesComponent
-  :: forall query output m
+  :: forall query m
    . MonadAff m
-  => H.Component query (Map Message.GameId Message.FieldSize) output m
+  => H.Component query (Map Message.GameId Message.FieldSize) Message.GameId m
 openGamesComponent =
-  Hooks.component \_ openGames -> Hooks.do
+  Hooks.component \{ outputToken } openGames -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId _) -> HH.div_ $ [ HH.text gameId ])
+      $ map (\(Tuple gameId _) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text gameId ])
       $ Map.toUnfoldableUnordered openGames
 
 _createGames :: Proxy "createGames"
@@ -102,7 +106,10 @@ createGameComponent
   => H.Component query input Unit m
 createGameComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
-    Hooks.pure $ HH.button [ HE.onClick \_ -> Hooks.raise outputToken unit ] [ HH.text "create game" ]
+    Hooks.pure $ HH.button [ HE.onClick $ const $ Hooks.raise outputToken unit ] [ HH.text "create game" ]
+
+_field :: Proxy "field"
+_field = Proxy
 
 data AppQuery a = AppQuery Message.Response a
 
@@ -114,58 +121,77 @@ appComponent =
   Hooks.component \{ queryToken, outputToken } (openGamesInput /\ gamesInput) -> Hooks.do
     openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) $ openGamesInput
     games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) gamesInput
+    watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
+    activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
 
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
-          Message.CreateResponse gameId size ->
+          Message.GameInitResponse gameId moves ->
+            if Maybe.Just gameId == watchingGameId then
+              Hooks.put activeGameId $ Maybe.Just $ gameId /\ Array.foldl
+                ( \fields move ->
+                    Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
+                )
+                (NonEmptyList.singleton $ Field.emptyField 39 32)
+                moves
+            else
+              liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
+          Message.CreateResponse gameId playerId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId size
           Message.StartResponse gameId -> do
-            openGames' <- Hooks.get openGamesId
-            case Map.lookup gameId openGames' of
-              Maybe.Nothing -> liftEffect $ Exception.throwException $ Exception.error $ "No open game with id " <> gameId
+            case Map.lookup gameId openGames of
+              Maybe.Nothing -> liftEffect $ Console.warn $ "No open game with id " <> gameId
               Maybe.Just size -> do
                 Hooks.modify_ openGamesId $ Map.delete gameId
                 Hooks.modify_ gamesId $ Map.insert gameId size
+          Message.PutPointResponse gameId coordinate player ->
+            case activeGame of
+              Maybe.Just (activeGameId' /\ fields) | gameId == activeGameId' ->
+                Hooks.put activeGameId
+                  $ Maybe.Just
+                  $ (/\) activeGameId'
+                  $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
+                  $ Field.putPoint (Tuple coordinate.x coordinate.y) (unwrap player)
+                  $ NonEmptyList.head fields
+              _ ->
+                liftEffect $ Console.warn $ "Wrong game to put point"
           _ -> pure unit
         pure $ Maybe.Just a
 
-    Hooks.pure $ HH.div_
-      [ HH.slot_
+    Hooks.pure $ HH.div_ $
+      [ HH.slot
           _games
           unit
           gamesComponent
           games
-      , HH.slot_
+          \gameId -> do
+            Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+            Hooks.put watchingGameIdId $ Maybe.Just gameId
+            Hooks.raise outputToken $ Message.SubscribeRequest gameId
+      , HH.slot
           _openGames
           unit
           openGamesComponent
           openGames
-      , HH.slot
-          _createGames
-          unit
-          createGameComponent
-          unit
-          \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
-      ]
-
--- appComponent =
---   Hooks.component \_ _ -> Hooks.do
---     fields /\ fieldsId <- Hooks.useState $ NonEmptyList.singleton $ Field.emptyField 10 10
-
---     let
---       handleFieldOutput (Click pos) = Hooks.modify_ fieldsId $ \fields' ->
---         Maybe.maybe fields' (_ `NonEmptyList.cons` fields') $ Field.putNextPoint pos $ NonEmptyList.head fields'
-
---     Hooks.pure $ HH.slot
---       _field
---       unit
---       fieldComponent
---       fields
---       handleFieldOutput
-
--- _field :: Proxy "field"
--- _field = Proxy
+          \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
+      ] <> case activeGame of
+        Maybe.Just (gameId /\ fields) ->
+          [ HH.slot
+              _field
+              unit
+              fieldComponent
+              fields
+              \(Click (Tuple x y)) -> Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
+          ]
+        Maybe.Nothing ->
+          [ HH.slot
+              _createGames
+              unit
+              createGameComponent
+              unit
+              \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
+          ]
 
 main :: Effect Unit
 main = do
