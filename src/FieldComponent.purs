@@ -18,7 +18,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (CanvasElement, getCanvasElementById, getCanvasHeight, getCanvasWidth, getContext2D, setCanvasHeight, setCanvasWidth)
+import Graphics.Canvas (CanvasElement, Context2D, getCanvasElementById, getCanvasHeight, getCanvasWidth, setCanvasHeight, setCanvasWidth)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
@@ -39,6 +39,8 @@ import Web.UIEvent.MouseEvent (MouseEvent)
 
 foreign import offsetX :: MouseEvent -> Number
 foreign import offsetY :: MouseEvent -> Number
+-- Forces software rendering on canvas, needed because hardware rendering is buggy in firefox.
+foreign import getContext2DThatWillReadFrequently :: CanvasElement -> Effect Context2D
 
 toHTMLCanvasElement :: CanvasElement -> HTMLCanvasElement
 toHTMLCanvasElement = unsafeCoerce
@@ -52,7 +54,8 @@ toPos canvas field drawSettings x y = do
     fieldHeight = Field.height field
     hReflection = drawSettings.hReflection
     vReflection = drawSettings.vReflection
-    _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos hReflection vReflection fieldWidth fieldHeight width height
+    gridThickness = drawSettings.gridThickness
+    _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
     posX = toGamePosX x
     posY = toGamePosY y
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
@@ -89,7 +92,7 @@ fieldComponent =
         clientHeight canvasElement >>= setCanvasHeight canvas
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
-        context <- getContext2D canvas
+        context <- getContext2DThatWillReadFrequently canvas
         draw defaultDrawSettings width height input context
       pure Nothing
 
