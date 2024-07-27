@@ -2,7 +2,7 @@ module Message where
 
 import Prelude
 
-import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, (.:), (:=), (~>))
+import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (:=), (~>))
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
@@ -32,11 +32,11 @@ instance Show Request where
   show = genericShow
 
 instance EncodeJson Request where
-  encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size
-  encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId
-  encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId
-  encodeJson (UnsubscribeRequest gameId) = "command" := "Unsubscribe" ~> "gameId" := gameId
-  encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate
+  encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
+  encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
+  encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId ~> jsonEmptyObject
+  encodeJson (UnsubscribeRequest gameId) = "command" := "Unsubscribe" ~> "gameId" := gameId ~> jsonEmptyObject
+  encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
 
 data Response
   = InitResponse (Array OpenGame) (Array Game)
