@@ -177,7 +177,7 @@ appComponent =
                 unit
                 gamesComponent
                 games
-                \gameId -> do
+                \gameId -> when (Maybe.Just gameId /= watchingGameId) do
                   Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                   Hooks.put watchingGameIdId $ Maybe.Just gameId
                   Hooks.raise outputToken $ Message.SubscribeRequest gameId
