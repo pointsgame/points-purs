@@ -2,6 +2,11 @@ module Main where
 
 import Prelude
 
+import CSS.Display as CSSDisplay
+import CSS.Geometry as CSSGeometry
+import CSS.Size as CSSSize
+import CSS.String as CSSString
+import CSS.Stylesheet as CSSStylesheet
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
@@ -11,14 +16,12 @@ import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.Either as Either
 import Data.Foldable (for_)
-import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
-import Data.Tuple as Tuple
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -26,13 +29,13 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
-import Field (Field)
 import Field as Field
 import FieldComponent (fieldComponent, Output(..))
 import Foreign (readString)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
+import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
@@ -159,39 +162,62 @@ appComponent =
           _ -> pure unit
         pure $ Maybe.Just a
 
-    Hooks.pure $ HH.div_ $
-      [ HH.slot
-          _games
-          unit
-          gamesComponent
-          games
-          \gameId -> do
-            Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
-            Hooks.put watchingGameIdId $ Maybe.Just gameId
-            Hooks.raise outputToken $ Message.SubscribeRequest gameId
-      , HH.slot
-          _openGames
-          unit
-          openGamesComponent
-          openGames
-          \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
-      ] <> case activeGame of
-        Maybe.Just (gameId /\ fields) ->
-          [ HH.slot
-              _field
-              unit
-              fieldComponent
-              fields
-              \(Click (Tuple x y)) -> Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
+    Hooks.pure
+      $ HH.div
+          [ CSS.style do
+               CSSGeometry.width $ CSSSize.pct 100.0
+               CSSGeometry.height $ CSSSize.pct 100.0
+               CSSDisplay.display CSSDisplay.grid
           ]
-        Maybe.Nothing ->
-          [ HH.slot
-              _createGames
-              unit
-              createGameComponent
-              unit
-              \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
-          ]
+      $
+        [ HH.div
+            [ CSS.style do
+                CSSStylesheet.key (CSSString.fromString "grid-column-start") "1"
+                CSSStylesheet.key (CSSString.fromString "grid-column-end") "1"
+                CSSStylesheet.key (CSSString.fromString "grid-row-start") "1"
+                CSSStylesheet.key (CSSString.fromString "grid-row-end") "1"
+            ]
+            [ HH.slot
+                _games
+                unit
+                gamesComponent
+                games
+                \gameId -> do
+                  Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                  Hooks.put watchingGameIdId $ Maybe.Just gameId
+                  Hooks.raise outputToken $ Message.SubscribeRequest gameId
+            , HH.slot
+                _openGames
+                unit
+                openGamesComponent
+                openGames
+                \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
+            ]
+        , HH.div
+            [ CSS.style do
+                CSSStylesheet.key (CSSString.fromString "grid-column-start") "2"
+                CSSStylesheet.key (CSSString.fromString "grid-column-end") "2"
+                CSSStylesheet.key (CSSString.fromString "grid-row-start") "1"
+                CSSStylesheet.key (CSSString.fromString "grid-row-end") "1"
+            ]
+            [ case activeGame of
+                Maybe.Just (gameId /\ fields) ->
+                  HH.slot
+                    _field
+                    unit
+                    fieldComponent
+                    fields
+                    \(Click (Tuple x y)) -> Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
+
+                Maybe.Nothing ->
+                  HH.slot
+                    _createGames
+                    unit
+                    createGameComponent
+                    unit
+                    \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
+            ]
+        ]
 
 main :: Effect Unit
 main = do
