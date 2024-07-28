@@ -5,7 +5,7 @@ import Prelude
 import CSS as CSS
 import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe (Maybe(..))
@@ -17,7 +17,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (CanvasElement, Context2D, getCanvasElementById, getCanvasHeight, getCanvasWidth, setCanvasHeight, setCanvasWidth)
+import Graphics.Canvas (CanvasElement, Context2D, getCanvasElementById, getCanvasHeight, getCanvasWidth, getContext2D, setCanvasHeight, setCanvasWidth)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HCSS
@@ -25,7 +25,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, defaultDrawSettings, draw, fromToFieldPos)
+import Render (DrawSettings, defaultDrawSettings, draw, drawPointer, fromToFieldPos)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -86,15 +86,18 @@ fieldComponent =
       pure $ Just $ Hooks.unsubscribe subscriptionId
 
     Hooks.captures { size, input } Hooks.useTickEffect do
-      liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
-        maybeParent <- parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas
-        for_ maybeParent \parent -> do
+      let
+        setCanvasSize canvas = bind (parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas) $ traverse_ \parent -> do
           clientWidth parent >>= setCanvasWidth canvas
           clientHeight parent >>= setCanvasHeight canvas
+      liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
+        setCanvasSize canvas
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2DThatWillReadFrequently canvas
         draw defaultDrawSettings width height input context
+        bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
+          setCanvasSize canvasPointer
       pure Nothing
 
     Hooks.pure $ HH.div
@@ -109,13 +112,27 @@ fieldComponent =
               CSS.position CSS.absolute
               CSS.top $ CSS.px 0.0
               CSS.left $ CSS.px 0.0
+          ]
+      , HH.canvas $
+          [ HP.id "canvas-pointer"
+          , HCSS.style do
+              CSS.position CSS.absolute
+              CSS.top $ CSS.px 0.0
+              CSS.left $ CSS.px 0.0
           , HE.onClick \e -> void $ runMaybeT $ do
               pos <- mapMaybeT liftEffect $ do
-                canvas <- wrap $ getCanvasElementById "canvas"
+                canvas <- wrap $ getCanvasElementById "canvas-pointer"
                 wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
               when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
                 $ lift
                 $ Hooks.raise tokens.outputToken
                 $ Click pos
+          , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
+              canvas <- wrap $ getCanvasElementById "canvas-pointer"
+              width <- lift $ getCanvasWidth canvas
+              height <- lift $ getCanvasHeight canvas
+              context <- lift $ getContext2D canvas
+              pos <- wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
+              lift $ drawPointer defaultDrawSettings width height input pos context
           ]
       ]

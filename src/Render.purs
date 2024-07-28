@@ -9,13 +9,14 @@ import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe (maybe)
+import Data.Maybe as Maybe
 import Data.Number (pi)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
-import Field (Field)
+import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (Context2D, arc, beginPath, fill, fillRect, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, fillRect, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
 
 type DrawSettings =
@@ -206,3 +207,33 @@ draw
     for_ (List.concatMap (List.fromFoldable <<< Field.lastSurroundChain) $ NonEmptyList.toList $ NonEmptyList.reverse fields) \(Tuple chain player) -> do
       setFillStyle context $ if player == Player.Red then redColor else blackColor
       polygon context $ map fromPos chain
+
+drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
+drawPointer
+  { hReflection
+  , vReflection
+  , gridThickness
+  , redColor
+  , blackColor
+  , pointRadius
+  }
+  width
+  height
+  fields
+  (Tuple x y)
+  context =
+  do
+    let
+      headField = NonEmptyList.head fields
+      fieldWidth = Field.width headField
+      fieldHeight = Field.height headField
+      width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height
+      scale = width' / toNumber fieldWidth
+      fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
+      player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
+    clearRect context { x: 0.0, y: 0.0, width, height }
+    setGlobalAlpha context 0.5
+    beginPath context
+    setFillStyle context $ if player == Player.Red then redColor else blackColor
+    arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
+    fill context
