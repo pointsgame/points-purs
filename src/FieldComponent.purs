@@ -2,11 +2,10 @@ module FieldComponent where
 
 import Prelude
 
-import CSS.Geometry as CSSGeometry
-import CSS.Size as CSSSize
+import CSS as CSS
 import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
-import Data.Foldable (traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe (Maybe(..))
@@ -21,7 +20,7 @@ import Field as Field
 import Graphics.Canvas (CanvasElement, Context2D, getCanvasElementById, getCanvasHeight, getCanvasWidth, setCanvasHeight, setCanvasWidth)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.CSS as CSS
+import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
@@ -29,6 +28,7 @@ import Halogen.Query.Event as HQE
 import Render (DrawSettings, defaultDrawSettings, draw, fromToFieldPos)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
+import Web.DOM.Node (parentElement)
 import Web.Event.Event (EventType(..))
 import Web.Event.Event as Event
 import Web.HTML (HTMLCanvasElement)
@@ -87,26 +87,35 @@ fieldComponent =
 
     Hooks.captures { size, input } Hooks.useTickEffect do
       liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
-        let canvasElement = HTMLCanvasElement.toElement $ toHTMLCanvasElement canvas
-        clientWidth canvasElement >>= setCanvasWidth canvas
-        clientHeight canvasElement >>= setCanvasHeight canvas
+        maybeParent <- parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas
+        for_ maybeParent \parent -> do
+          clientWidth parent >>= setCanvasWidth canvas
+          clientHeight parent >>= setCanvasHeight canvas
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2DThatWillReadFrequently canvas
         draw defaultDrawSettings width height input context
       pure Nothing
 
-    Hooks.pure $ HH.canvas
-      [ HP.id "canvas"
-      , CSS.style do
-          CSSGeometry.width $ CSSSize.pct 100.0
-          CSSGeometry.height $ CSSSize.pct 100.0
-      , HE.onClick \e -> void $ runMaybeT $ do
-          pos <- mapMaybeT liftEffect $ do
-            canvas <- wrap $ getCanvasElementById "canvas"
-            wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
-          when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
-            $ lift
-            $ Hooks.raise tokens.outputToken
-            $ Click pos
+    Hooks.pure $ HH.div
+      [ HCSS.style do
+          CSS.position CSS.relative
+          CSS.width $ CSS.pct 100.0
+          CSS.height $ CSS.pct 100.0
+      ]
+      [ HH.canvas
+          [ HP.id "canvas"
+          , HCSS.style do
+              CSS.position CSS.absolute
+              CSS.top $ CSS.px 0.0
+              CSS.left $ CSS.px 0.0
+          , HE.onClick \e -> void $ runMaybeT $ do
+              pos <- mapMaybeT liftEffect $ do
+                canvas <- wrap $ getCanvasElementById "canvas"
+                wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
+              when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
+                $ lift
+                $ Hooks.raise tokens.outputToken
+                $ Click pos
+          ]
       ]

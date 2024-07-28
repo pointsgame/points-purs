@@ -2,11 +2,8 @@ module Main where
 
 import Prelude
 
-import CSS.Display as CSSDisplay
-import CSS.Geometry as CSSGeometry
-import CSS.Size as CSSSize
-import CSS.String as CSSString
-import CSS.Stylesheet as CSSStylesheet
+import CSS as CSS
+import CSS.Common (auto)
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
@@ -35,7 +32,7 @@ import Foreign (readString)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
-import Halogen.HTML.CSS as CSS
+import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
@@ -164,18 +161,16 @@ appComponent =
 
     Hooks.pure
       $ HH.div
-          [ CSS.style do
-               CSSGeometry.width $ CSSSize.pct 100.0
-               CSSGeometry.height $ CSSSize.pct 100.0
-               CSSDisplay.display CSSDisplay.grid
+          [ HCSS.style do
+              CSS.width $ CSS.pct 100.0
+              CSS.height $ CSS.pct 100.0
+              CSS.display CSS.grid
+              CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, auto ]
+              CSS.key (CSS.fromString "grid-template-areas") [ CSS.quote "games field" ]
           ]
       $
         [ HH.div
-            [ CSS.style do
-                CSSStylesheet.key (CSSString.fromString "grid-column-start") "1"
-                CSSStylesheet.key (CSSString.fromString "grid-column-end") "1"
-                CSSStylesheet.key (CSSString.fromString "grid-row-start") "1"
-                CSSStylesheet.key (CSSString.fromString "grid-row-end") "1"
+            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "games"
             ]
             [ HH.slot
                 _games
@@ -194,11 +189,7 @@ appComponent =
                 \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
             ]
         , HH.div
-            [ CSS.style do
-                CSSStylesheet.key (CSSString.fromString "grid-column-start") "2"
-                CSSStylesheet.key (CSSString.fromString "grid-column-end") "2"
-                CSSStylesheet.key (CSSString.fromString "grid-row-start") "1"
-                CSSStylesheet.key (CSSString.fromString "grid-row-end") "1"
+            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "field"
             ]
             [ case activeGame of
                 Maybe.Just (gameId /\ fields) ->
