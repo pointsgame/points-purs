@@ -220,20 +220,24 @@ drawPointer
   width
   height
   fields
-  (Tuple x y)
+  pos@(Tuple x y)
   context =
-  do
-    let
-      headField = NonEmptyList.head fields
-      fieldWidth = Field.width headField
-      fieldHeight = Field.height headField
-      width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height
-      scale = width' / toNumber fieldWidth
-      fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
-      player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
-    clearRect context { x: 0.0, y: 0.0, width, height }
-    setGlobalAlpha context 0.5
-    beginPath context
-    setFillStyle context $ if player == Player.Red then redColor else blackColor
-    arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
-    fill context
+  let
+    headField = NonEmptyList.head fields
+  in
+    do
+      clearRect context { x: 0.0, y: 0.0, width, height }
+      when (Field.isPuttingAllowed headField pos) $
+        do
+          let
+            fieldWidth = Field.width headField
+            fieldHeight = Field.height headField
+            width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height
+            scale = width' / toNumber fieldWidth
+            fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
+            player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
+          setGlobalAlpha context 0.33
+          beginPath context
+          setFillStyle context $ if player == Player.Red then redColor else blackColor
+          arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
+          fill context
