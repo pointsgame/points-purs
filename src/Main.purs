@@ -81,7 +81,7 @@ gamesComponent
 gamesComponent =
   Hooks.component \{ outputToken } games -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId _) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text gameId ])
+      $ map (\(Tuple gameId size) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text $ show size.width <> ":" <> show size.height ])
       $ Map.toUnfoldableUnordered games
 
 _openGames :: Proxy "openGames"
@@ -94,7 +94,7 @@ openGamesComponent
 openGamesComponent =
   Hooks.component \{ outputToken } openGames -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId _) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text gameId ])
+      $ map (\(Tuple gameId size) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text $ show size.width <> ":" <> show size.height ])
       $ Map.toUnfoldableUnordered openGames
 
 _createGames :: Proxy "createGames"
