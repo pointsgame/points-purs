@@ -21,6 +21,7 @@ package:
     - halogen
     - halogen-hooks
     - halogen-css
+    - web-url
 workspace:
   backend:
     cmd: "purs-backend-es"

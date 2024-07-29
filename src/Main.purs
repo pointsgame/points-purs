@@ -17,7 +17,7 @@ import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe as Maybe
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
@@ -39,13 +39,19 @@ import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Type.Proxy (Proxy(..))
+import Web.Event.Event (Event)
 import Web.Event.EventTarget as EET
 import Web.HTML as HTML
 import Web.HTML.Location as Location
+import Web.HTML.Window (Window)
 import Web.HTML.Window as Window
 import Web.Socket.Event.EventTypes as WSET
 import Web.Socket.Event.MessageEvent as ME
 import Web.Socket.WebSocket as WS
+import Web.URL.URLSearchParams as URLSearchParams
+
+foreign import postMessage :: forall m. Window -> m -> Effect Unit
+foreign import eventData  :: forall d. Event -> d
 
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
@@ -239,15 +245,37 @@ appComponent =
             ]
         ]
 
+checkRedirect :: Window -> Effect Boolean
+checkRedirect window = do
+  maybeOpener <- Window.opener window
+  flip (Maybe.maybe (pure false)) maybeOpener \opener -> do
+    location <- Window.location window
+    url <- Location.search location
+    let
+      searchParams = URLSearchParams.fromString url
+      maybeCode = URLSearchParams.get "code" searchParams
+      maybeState = URLSearchParams.get "state" searchParams
+    flip (Maybe.maybe (pure false)) (Tuple <$> maybeCode <*> maybeState) \(Tuple code state) -> do
+      postMessage opener { code, state }
+      Window.close window
+      pure true
+
 main :: Effect Unit
 main = do
-  connection <- WS.create "ws://127.0.0.1:8080" []
-  HA.runHalogenAff do
-    body <- HA.awaitBody
-    CR.runProcess $ wsProducer connection CR.$$ do
-      openGames /\ games <- CR.await >>= case _ of
-        Message.InitResponse openGames games -> pure $ openGames /\ games
-        other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
-      io <- lift $ runUI appComponent (openGames /\ games) body
-      _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connection
-      CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
+  window <- HTML.window
+  redirect <- checkRedirect window
+  unless redirect do
+    connection <- WS.create "ws://127.0.0.1:8080" []
+    listener <- EET.eventListener \event -> do
+      let data' = eventData event
+      wsSender connection $ Message.AuthRequest data'.code data'.state
+    EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
+    HA.runHalogenAff do
+      body <- HA.awaitBody
+      CR.runProcess $ wsProducer connection CR.$$ do
+        openGames /\ games <- CR.await >>= case _ of
+          Message.InitResponse openGames games -> pure $ openGames /\ games
+          other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
+        io <- lift $ runUI appComponent (openGames /\ games) body
+        _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connection
+        CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing

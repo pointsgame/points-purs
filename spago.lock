@@ -88,6 +88,7 @@ workspace:
         - transformers
         - tuples
         - web-socket
+        - web-url
       test_dependencies: []
       build_plan:
         - aff
@@ -188,6 +189,7 @@ workspace:
         - web-storage
         - web-touchevents
         - web-uievents
+        - web-url
   package_set:
     address:
       registry: 55.0.0
@@ -1772,3 +1774,15 @@ packages:
     integrity: sha256-5I+ut9JYno3wowti3vJGs1afKCm1ucppKuy+zhuSyss=
     dependencies:
       - web-html
+  web-url:
+    type: registry
+    version: 2.0.0
+    integrity: sha256-isicTqg0+JZmIK+eD3kwQroOocufYDGZVNIx/wFw488=
+    dependencies:
+      - aff
+      - effect
+      - maybe
+      - partial
+      - prelude
+      - spec
+      - tuples
