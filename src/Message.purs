@@ -41,8 +41,21 @@ type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
 type Game = { gameId :: GameId, size :: FieldSize }
 
+data AuthProvider = GoogleAuthProvider
+
+derive instance Generic AuthProvider _
+
+derive instance Eq AuthProvider
+
+instance EncodeJson AuthProvider where
+  encodeJson GoogleAuthProvider = encodeJson "Google"
+
+instance Show AuthProvider where
+  show = genericShow
+
 data Request
-  = CreateRequest FieldSize
+  = GetAuthUrlRequest AuthProvider
+  | CreateRequest FieldSize
   | JoinRequest GameId
   | SubscribeRequest GameId
   | UnsubscribeRequest GameId
@@ -56,6 +69,7 @@ instance Show Request where
   show = genericShow
 
 instance EncodeJson Request where
+  encodeJson (GetAuthUrlRequest provider) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> jsonEmptyObject
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId ~> jsonEmptyObject
@@ -65,6 +79,7 @@ instance EncodeJson Request where
 data Response
   = InitResponse (Array OpenGame) (Array Game)
   | GameInitResponse GameId (Array Move)
+  | AuthUrlResponse String
   | CreateResponse GameId PlayerId FieldSize
   | StartResponse GameId
   | PutPointResponse GameId Coordinate JsonPlayer
@@ -83,6 +98,7 @@ instance DecodeJson Response where
     case command of
       "Init" -> InitResponse <$> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
+      "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Start" -> StartResponse <$> obj .: "gameId"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"

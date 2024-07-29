@@ -108,6 +108,17 @@ createGameComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
     Hooks.pure $ HH.button [ HE.onClick $ const $ Hooks.raise outputToken unit ] [ HH.text "create game" ]
 
+_login :: Proxy "login"
+_login = Proxy
+
+loginComponent
+  :: forall query input m
+   . MonadAff m
+  => H.Component query input Unit m
+loginComponent =
+  Hooks.component \{ outputToken } _ -> Hooks.do
+    Hooks.pure $ HH.button [ HE.onClick $ const $ Hooks.raise outputToken unit ] [ HH.text "login" ]
+
 _field :: Proxy "field"
 _field = Proxy
 
@@ -137,6 +148,10 @@ appComponent =
                 moves
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
+          Message.AuthUrlResponse url -> liftEffect $ do
+            window <- HTML.window
+            _ <- Window.open url "_blank" "" window
+            pure unit
           Message.CreateResponse gameId playerId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId size
           Message.StartResponse gameId -> do
@@ -166,7 +181,11 @@ appComponent =
               CSS.height $ CSS.pct 100.0
               CSS.display CSS.grid
               CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, auto ]
-              CSS.key (CSS.fromString "grid-template-areas") [ CSS.quote "games field" ]
+              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSS.rem 2.0, auto ]
+              CSS.key (CSS.fromString "grid-template-areas") $ CSS.noCommas $ map CSS.quote
+                [ "games login"
+                , "games field"
+                ]
           ]
       $
         [ HH.div
@@ -207,6 +226,16 @@ appComponent =
                     createGameComponent
                     unit
                     \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
+            ]
+        , HH.div
+            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "login"
+            ]
+            [ HH.slot
+                _login
+                unit
+                loginComponent
+                openGames
+                \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
             ]
         ]
 
