@@ -39,7 +39,7 @@ type Move = { coordinate :: Coordinate, player :: JsonPlayer }
 
 type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
-type Game = { gameId :: GameId, size :: FieldSize }
+type Game = { gameId :: GameId, redPlayerId :: PlayerId, blackPlayerId :: PlayerId, size :: FieldSize }
 
 data AuthProvider = GoogleAuthProvider
 
@@ -84,7 +84,7 @@ data Response
   | AuthUrlResponse String
   | AuthResponse PlayerId
   | CreateResponse GameId PlayerId FieldSize
-  | StartResponse GameId
+  | StartResponse GameId PlayerId PlayerId
   | PutPointResponse GameId Coordinate JsonPlayer
 
 derive instance Generic Response _
@@ -104,6 +104,6 @@ instance DecodeJson Response where
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
-      "Start" -> StartResponse <$> obj .: "gameId"
+      "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "redPlayerId" <*> obj .: "blackPlayerId"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"
       other -> Left $ UnexpectedValue $ encodeJson other
