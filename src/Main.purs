@@ -17,6 +17,7 @@ import Data.Foldable (for_)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..))
@@ -87,11 +88,15 @@ _games = Proxy
 gamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Map Message.GameId Game) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId Game) Message.GameId m
 gamesComponent =
-  Hooks.component \{ outputToken } games -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId { size }) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text $ show size.width <> ":" <> show size.height ])
+      $ map
+          ( \(Tuple gameId { size }) -> HH.div
+              [ HE.onClick $ const $ Hooks.raise outputToken gameId ]
+              [ HH.text $ show size.width <> ":" <> show size.height ]
+          )
       $ Map.toUnfoldableUnordered games
 
 _openGames :: Proxy "openGames"
@@ -100,23 +105,43 @@ _openGames = Proxy
 openGamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Map Message.GameId OpenGame) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame) Message.GameId m
 openGamesComponent =
-  Hooks.component \{ outputToken } openGames -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map (\(Tuple gameId { size }) -> HH.div [ HE.onClick $ const $ Hooks.raise outputToken gameId ] [ HH.text $ show size.width <> ":" <> show size.height ])
+      $ map
+          ( \(Tuple gameId { size }) -> HH.div
+              [ HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
+                  Hooks.raise outputToken gameId
+              ]
+              [ HH.text $ show size.width <> ":" <> show size.height ]
+          )
       $ Map.toUnfoldableUnordered openGames
 
-_createGames :: Proxy "createGames"
-_createGames = Proxy
+_createGame :: Proxy "createGame"
+_createGame = Proxy
+
+data CreateGameOutput = CreateGame Int Int | CloseGame Message.GameId
 
 createGameComponent
-  :: forall query input m
+  :: forall query m
    . MonadAff m
-  => H.Component query input Unit m
+  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame) CreateGameOutput m
 createGameComponent =
-  Hooks.component \{ outputToken } _ -> Hooks.do
-    Hooks.pure $ HH.button [ HE.onClick $ const $ Hooks.raise outputToken unit ] [ HH.text "create game" ]
+  Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
+    Hooks.pure $
+      if Maybe.isJust activePlayerId then
+        case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
+          Maybe.Nothing ->
+            HH.button
+              [ HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32 ]
+              [ HH.text "Create game" ]
+          Maybe.Just (Tuple gameId _) ->
+            HH.button
+              [ HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId ]
+              [ HH.text "Cancel game" ]
+      else
+        HH.text "Sign in to play!"
 
 _login :: Proxy "login"
 _login = Proxy
@@ -131,7 +156,7 @@ loginComponent =
       [ HE.onClick $ const $ Hooks.raise outputToken unit
       , HCSS.style $ CSS.float CSS.floatRight
       ]
-      [ HH.text "login" ]
+      [ HH.text "Sign in" ]
 
 _field :: Proxy "field"
 _field = Proxy
@@ -214,7 +239,7 @@ appComponent =
                 _games
                 unit
                 gamesComponent
-                games
+                (activePlayerId /\ games)
                 \gameId -> when (Maybe.Just gameId /= watchingGameId) do
                   Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                   Hooks.put watchingGameIdId $ Maybe.Just gameId
@@ -223,10 +248,8 @@ appComponent =
                 _openGames
                 unit
                 openGamesComponent
-                openGames
-                \gameId -> when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId)
-                  $ Hooks.raise outputToken
-                  $ Message.JoinRequest gameId
+                (activePlayerId /\ openGames)
+                \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
             ]
         , HH.div
             [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "field"
@@ -247,11 +270,13 @@ appComponent =
                           $ Message.PutPointRequest gameId { x, y }
                 Maybe.Nothing ->
                   HH.slot
-                    _createGames
+                    _createGame
                     unit
                     createGameComponent
-                    unit
-                    \_ -> Hooks.raise outputToken $ Message.CreateRequest { width: 39, height: 32 }
+                    (activePlayerId /\ openGames)
+                    case _ of
+                      CreateGame width height -> Hooks.raise outputToken $ Message.CreateRequest { width, height }
+                      CloseGame gameId -> pure unit
             ]
         , HH.div
             [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "login"
