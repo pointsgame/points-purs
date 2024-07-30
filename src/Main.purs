@@ -3,7 +3,8 @@ module Main where
 import Prelude
 
 import CSS as CSS
-import CSS.Common (auto)
+import CSS.Common as CSSCommon
+import CSS.Overflow as CSSOverflow
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
@@ -51,7 +52,7 @@ import Web.Socket.WebSocket as WS
 import Web.URL.URLSearchParams as URLSearchParams
 
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
-foreign import eventData  :: forall d. Event -> d
+foreign import eventData :: forall d. Event -> d
 
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
@@ -186,8 +187,8 @@ appComponent =
               CSS.width $ CSS.pct 100.0
               CSS.height $ CSS.pct 100.0
               CSS.display CSS.grid
-              CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, auto ]
-              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSS.rem 2.0, auto ]
+              CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, CSSCommon.auto ]
+              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSS.rem 2.0, CSSCommon.auto ]
               CSS.key (CSS.fromString "grid-template-areas") $ CSS.noCommas $ map CSS.quote
                 [ "games login"
                 , "games field"
@@ -195,7 +196,9 @@ appComponent =
           ]
       $
         [ HH.div
-            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "games"
+            [ HCSS.style $ do
+                CSS.key (CSS.fromString "grid-area") "games"
+                CSSOverflow.overflow CSSOverflow.overflowAuto
             ]
             [ HH.slot
                 _games
