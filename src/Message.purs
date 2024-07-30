@@ -82,6 +82,7 @@ data Response
   = InitResponse (Array OpenGame) (Array Game)
   | GameInitResponse GameId (Array Move)
   | AuthUrlResponse String
+  | AuthResponse PlayerId
   | CreateResponse GameId PlayerId FieldSize
   | StartResponse GameId
   | PutPointResponse GameId Coordinate JsonPlayer
@@ -101,6 +102,7 @@ instance DecodeJson Response where
       "Init" -> InitResponse <$> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
+      "Auth" -> AuthResponse <$> obj .: "playerId"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Start" -> StartResponse <$> obj .: "gameId"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"

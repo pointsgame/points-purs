@@ -137,6 +137,7 @@ appComponent
   => H.Component AppQuery (Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
   Hooks.component \{ queryToken, outputToken } (openGamesInput /\ gamesInput) -> Hooks.do
+    playerId /\ playerIdId <- Hooks.useState Maybe.Nothing
     openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) $ openGamesInput
     games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, size } -> Tuple gameId size) gamesInput
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
@@ -159,7 +160,9 @@ appComponent =
             window <- HTML.window
             _ <- Window.open url "_blank" "" window
             pure unit
-          Message.CreateResponse gameId playerId size ->
+          Message.AuthResponse playerId' ->
+            Hooks.put playerIdId $ Maybe.Just playerId'
+          Message.CreateResponse gameId playerId' size ->
             Hooks.modify_ openGamesId $ Map.insert gameId size
           Message.StartResponse gameId -> do
             case Map.lookup gameId openGames of
