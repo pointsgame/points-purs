@@ -13,7 +13,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.Either as Either
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
@@ -54,6 +54,9 @@ import Web.URL.URLSearchParams as URLSearchParams
 
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
 foreign import eventData :: forall d. Event -> d
+
+fr :: Number -> CSS.Size CSS.LengthUnit
+fr i = CSS.BasicSize (CSS.value i <> CSS.fromString "fr")
 
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
@@ -143,18 +146,17 @@ createGameComponent =
       else
         HH.text "Sign in to play!"
 
-_login :: Proxy "login"
-_login = Proxy
+_signin :: Proxy "signin"
+_signin = Proxy
 
-loginComponent
+signinComponent
   :: forall query input m
    . MonadAff m
   => H.Component query input Unit m
-loginComponent =
+signinComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
     Hooks.pure $ HH.button
       [ HE.onClick $ const $ Hooks.raise outputToken unit
-      , HCSS.style $ CSS.float CSS.floatRight
       ]
       [ HH.text "Sign in" ]
 
@@ -223,15 +225,15 @@ appComponent =
               CSS.height $ CSS.pct 100.0
               CSS.display CSS.grid
               CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, CSSCommon.auto ]
-              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSS.rem 2.0, CSSCommon.auto ]
+              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSSCommon.auto, fr 1.0 ]
               CSS.key (CSS.fromString "grid-template-areas") $ CSS.noCommas $ map CSS.quote
-                [ "games login"
+                [ "header header"
                 , "games field"
                 ]
           ]
       $
         [ HH.div
-            [ HCSS.style $ do
+            [ HCSS.style do
                 CSS.key (CSS.fromString "grid-area") "games"
                 CSSOverflow.overflow CSSOverflow.overflowAuto
             ]
@@ -279,12 +281,20 @@ appComponent =
                       CloseGame gameId -> pure unit
             ]
         , HH.div
-            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "login"
+            [ HCSS.style do
+                CSS.key (CSS.fromString "grid-area") "header"
+                CSS.display CSS.flex
+                CSS.justifyContent CSS.spaceBetween
+                CSS.alignItems CSSCommon.center
+                CSS.padding (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5)
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
+                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                CSS.height $ CSS.rem 1.5
             ]
             [ HH.slot
-                _login
+                _signin
                 unit
-                loginComponent
+                signinComponent
                 openGames
                 \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
             ]
