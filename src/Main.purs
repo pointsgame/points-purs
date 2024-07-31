@@ -328,7 +328,11 @@ appComponent =
                     (activePlayerId /\ openGames)
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
                 ]
-            , HH.div_
+            , HH.div
+                [ HCSS.style do
+                    CSS.width $ CSS.pct 100.0
+                    CSS.height $ CSS.pct 100.0
+                ]
                 [ case activeGame of
                     Maybe.Just (gameId /\ fields) ->
                       HH.slot
