@@ -10,6 +10,7 @@ import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
 import Control.Monad.Except (runExcept)
+import Control.Monad.Maybe.Trans (runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
@@ -31,7 +32,7 @@ import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
 import Field as Field
-import FieldComponent (fieldComponent, Output(..))
+import FieldComponent (fieldComponent, Output(..), Redraw(..))
 import Foreign (readString)
 import Halogen as H
 import Halogen.Aff as HA
@@ -44,6 +45,8 @@ import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Type.Proxy (Proxy(..))
+import Web.DOM.Element as Element
+import Web.DOM.MutationObserver as MutationObserver
 import Web.DOM.NonElementParentNode (getElementById)
 import Web.Event.Event (Event)
 import Web.Event.EventTarget as EET
@@ -238,12 +241,25 @@ appComponent
    . MonadAff m
   => H.Component AppQuery (Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
-  Hooks.component \{ queryToken, outputToken } (openGamesInput /\ gamesInput) -> Hooks.do
+  Hooks.component \{ queryToken, outputToken, slotToken } (openGamesInput /\ gamesInput) -> Hooks.do
     activePlayerId /\ activePlayerIdId <- Hooks.useState Maybe.Nothing
     openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
     games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
     activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
+
+    Hooks.useLifecycleEffect do
+      let
+        emitter = HS.makeEmitter \push -> do
+          observer <- MutationObserver.mutationObserver \_ _ -> push $ Hooks.tell slotToken _field unit Redraw
+          window <- HTML.window
+          document <- Window.document window
+          void $ runMaybeT $ do
+            sidePanel <- wrap $ getElementById "side-panel" $ Document.toNonElementParentNode document
+            lift $ MutationObserver.observe (Element.toNode sidePanel) { attributes: true } observer
+          pure $ MutationObserver.disconnect observer
+      subscriptionId <- Hooks.subscribe emitter
+      pure $ Maybe.Just $ Hooks.unsubscribe subscriptionId
 
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
@@ -325,7 +341,8 @@ appComponent =
                 CSS.display CSS.flex
             ]
             [ HH.div
-                [ HCSS.style do
+                [ HP.id "side-panel"
+                , HCSS.style do
                     CSS.width $ CSS.rem 10.0
                     CSS.key (CSS.fromString "resize") "horizontal"
                     traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"

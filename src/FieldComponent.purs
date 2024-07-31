@@ -63,22 +63,27 @@ toPos canvas field drawSettings x y = do
 
 data Output = Click Pos
 
+data Redraw a = Redraw a
+
 fieldComponent
-  :: forall query m
+  :: forall m
    . MonadAff m
-  => H.Component query (NonEmptyList Field) Output m
+  => H.Component Redraw (NonEmptyList Field) Output m
 fieldComponent =
-  Hooks.component \tokens input -> Hooks.do
+  Hooks.component \{ queryToken, outputToken } input -> Hooks.do
     size /\ sizeId <- Hooks.useState Nothing
 
+    let
+      setSize = void $ runMaybeT $ (lift <<< Hooks.put sizeId) =<< mapMaybeT liftEffect do
+        canvas <- wrap $ getCanvasElementById "canvas"
+        parent <- wrap $ parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas
+        width <- lift $ clientWidth parent
+        height <- lift $ clientHeight parent
+        pure $ Just { width, height }
+
+    Hooks.useQuery queryToken \(Redraw a) -> setSize $> Just a
+
     Hooks.useLifecycleEffect do
-      let
-        setSize = void $ runMaybeT $ (lift <<< Hooks.put sizeId) =<< mapMaybeT liftEffect do
-          canvas <- wrap $ getCanvasElementById "canvas"
-          parent <- wrap $ parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas
-          width <- lift $ clientWidth parent
-          height <- lift $ clientHeight parent
-          pure $ Just { width, height }
       setSize
       window <- liftEffect HTML.window
       subscriptionId <- Hooks.subscribe do
@@ -129,7 +134,7 @@ fieldComponent =
                 wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
               when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
                 $ lift
-                $ Hooks.raise tokens.outputToken
+                $ Hooks.raise outputToken
                 $ Click pos
           , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
               canvas <- wrap $ getCanvasElementById "canvas-pointer"
