@@ -344,6 +344,7 @@ appComponent =
                 [ HP.id "side-panel"
                 , HCSS.style do
                     CSS.width $ CSS.rem 10.0
+                    CSS.height $ CSS.pct 100.0
                     CSS.key (CSS.fromString "resize") "horizontal"
                     traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                     CSSOverflow.overflow CSSOverflow.overflowAuto
@@ -365,9 +366,7 @@ appComponent =
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
                 ]
             , HH.div
-                [ HCSS.style do
-                    CSS.width $ CSS.pct 100.0
-                    CSS.height $ CSS.pct 100.0
+                [ HCSS.style $ CSS.flexGrow 2.0
                 ]
                 [ case activeGame of
                     Maybe.Just (gameId /\ fields) ->
