@@ -20,6 +20,7 @@ module Field
   , emptyField
   , putPoint
   , lastPlayer
+  , nextPlayer
   , putNextPoint
   ) where
 
@@ -42,7 +43,8 @@ import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
 import Data.Tuple.Nested as NestedTuple
 import Partial.Unsafe as UnsafePartial
-import Player (Player(Red, Black), nextPlayer)
+import Player (Player)
+import Player as Player
 
 type Pos = Tuple Int Int
 
@@ -105,10 +107,10 @@ instance Show Field where
         case field.cells Array2D.!! (Tuple x y) of
           Maybe.Just EmptyCell -> '.'
           Maybe.Just (EmptyBaseCell _) -> '.'
-          Maybe.Just (PointCell Red) -> 'X'
-          Maybe.Just (PointCell Black) -> 'O'
-          Maybe.Just (BaseCell Red true) -> 'o'
-          Maybe.Just (BaseCell Black true) -> 'x'
+          Maybe.Just (PointCell Player.Red) -> 'X'
+          Maybe.Just (PointCell Player.Black) -> 'O'
+          Maybe.Just (BaseCell Player.Red true) -> 'o'
+          Maybe.Just (BaseCell Player.Black true) -> 'x'
           Maybe.Just (BaseCell _ false) -> ','
           Maybe.Nothing -> '\n'
 
@@ -148,7 +150,7 @@ isPlayersPoint :: Field -> Pos -> Player -> Boolean
 isPlayersPoint (Field field) pos player = field.cells Array2D.!! pos == Maybe.Just (PointCell player)
 
 isCapturedPoint :: Field -> Pos -> Player -> Boolean
-isCapturedPoint (Field field) pos player = field.cells Array2D.!! pos == Maybe.Just (BaseCell (nextPlayer player) true)
+isCapturedPoint (Field field) pos player = field.cells Array2D.!! pos == Maybe.Just (BaseCell (Player.nextPlayer player) true)
 
 isEmptyBase :: Field -> Pos -> Player -> Boolean
 isEmptyBase (Field field) pos player = field.cells Array2D.!! pos == Maybe.Just (EmptyBaseCell player)
@@ -359,7 +361,7 @@ putPoint pos player (Field field)
   | otherwise =
       Maybe.Just $
         let
-          enemyPlayer = nextPlayer player
+          enemyPlayer = Player.nextPlayer player
           point = UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos
           newMoves = (Tuple pos player) : field.moves
         in
@@ -396,8 +398,8 @@ putPoint pos player (Field field)
                 in
                   if not $ List.null captures then
                     Field
-                      { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
-                      , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
+                      { scoreRed: if player == Player.Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
+                      , scoreBlack: if player == Player.Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
                       , moves: newMoves
                       , lastSurroundChain: Maybe.Just (Tuple captureChain player)
                       , cells:
@@ -410,8 +412,8 @@ putPoint pos player (Field field)
                       }
                   else
                     Field
-                      { scoreRed: if player == Red then field.scoreRed else field.scoreRed + 1
-                      , scoreBlack: if player == Black then field.scoreBlack else field.scoreBlack + 1
+                      { scoreRed: if player == Player.Red then field.scoreRed else field.scoreRed + 1
+                      , scoreBlack: if player == Player.Black then field.scoreBlack else field.scoreBlack + 1
                       , moves: newMoves
                       , lastSurroundChain: Maybe.Just (Tuple (NonEmptyList.toList enemyEmptyBaseChain) enemyPlayer)
                       , cells:
@@ -427,8 +429,8 @@ putPoint pos player (Field field)
                   newEmptyBase = List.concatMap (List.filter (\pos' -> (UnsafePartial.unsafePartial $ Array2D.unsafeIndex field.cells pos') == EmptyCell) <<< NestedTuple.get2) emptyCaptures
                 in
                   Field
-                    { scoreRed: if player == Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
-                    , scoreBlack: if player == Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
+                    { scoreRed: if player == Player.Red then field.scoreRed + capturedCount else field.scoreRed - freedCount
+                    , scoreBlack: if player == Player.Black then field.scoreBlack + capturedCount else field.scoreBlack - freedCount
                     , moves: newMoves
                     , lastSurroundChain: if List.null captureChain then Maybe.Nothing else Maybe.Just (Tuple captureChain player)
                     , cells:
@@ -443,5 +445,8 @@ putPoint pos player (Field field)
 lastPlayer :: Field -> Maybe Player
 lastPlayer (Field field) = map Tuple.snd $ List.head field.moves
 
+nextPlayer :: Field -> Player
+nextPlayer = Maybe.fromMaybe Player.Red <<< map Player.nextPlayer <<< lastPlayer
+
 putNextPoint :: Pos -> Field -> Maybe Field
-putNextPoint pos field = putPoint pos (Maybe.fromMaybe Red $ map nextPlayer $ lastPlayer field) field
+putNextPoint pos field = putPoint pos (nextPlayer field) field

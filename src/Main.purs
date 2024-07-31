@@ -44,6 +44,7 @@ import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
 import Message as Message
+import Player as Player
 import Type.Proxy (Proxy(..))
 import Web.DOM.Element as Element
 import Web.DOM.MutationObserver as MutationObserver
@@ -378,8 +379,14 @@ appComponent =
                         \(Click (Tuple x y)) ->
                           let
                             game = Map.lookup gameId games
+                            nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
                           in
-                            when (Maybe.isJust activePlayerId && (map _.redPlayerId game == activePlayerId || map _.blackPlayerId game == activePlayerId))
+                            when
+                              ( Maybe.isJust activePlayerId &&
+                                  ( map _.redPlayerId game == activePlayerId && nextPlayer == Player.Red ||
+                                      map _.blackPlayerId game == activePlayerId && nextPlayer == Player.Black
+                                  )
+                              )
                               $ Hooks.raise outputToken
                               $ Message.PutPointRequest gameId { x, y }
                     Maybe.Nothing ->
