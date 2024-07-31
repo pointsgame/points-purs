@@ -223,67 +223,12 @@ appComponent =
           [ HCSS.style do
               CSS.width $ CSS.pct 100.0
               CSS.height $ CSS.pct 100.0
-              CSS.display CSS.grid
-              CSS.key (CSS.fromString "grid-template-columns") $ CSS.noCommas [ CSS.rem 10.0, CSSCommon.auto ]
-              CSS.key (CSS.fromString "grid-template-rows") $ CSS.noCommas [ CSSCommon.auto, fr 1.0 ]
-              CSS.key (CSS.fromString "grid-template-areas") $ CSS.noCommas $ map CSS.quote
-                [ "header header"
-                , "games field"
-                ]
+              CSS.display CSS.flex
+              CSS.flexDirection CSS.column
           ]
       $
         [ HH.div
             [ HCSS.style do
-                CSS.key (CSS.fromString "grid-area") "games"
-                traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                CSSOverflow.overflow CSSOverflow.overflowAuto
-            ]
-            [ HH.slot
-                _games
-                unit
-                gamesComponent
-                (activePlayerId /\ games)
-                \gameId -> when (Maybe.Just gameId /= watchingGameId) do
-                  Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
-                  Hooks.put watchingGameIdId $ Maybe.Just gameId
-                  Hooks.raise outputToken $ Message.SubscribeRequest gameId
-            , HH.slot
-                _openGames
-                unit
-                openGamesComponent
-                (activePlayerId /\ openGames)
-                \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
-            ]
-        , HH.div
-            [ HCSS.style $ CSS.key (CSS.fromString "grid-area") "field"
-            ]
-            [ case activeGame of
-                Maybe.Just (gameId /\ fields) ->
-                  HH.slot
-                    _field
-                    unit
-                    fieldComponent
-                    fields
-                    \(Click (Tuple x y)) ->
-                      let
-                        game = Map.lookup gameId games
-                      in
-                        when (Maybe.isJust activePlayerId && (map _.redPlayerId game == activePlayerId || map _.blackPlayerId game == activePlayerId))
-                          $ Hooks.raise outputToken
-                          $ Message.PutPointRequest gameId { x, y }
-                Maybe.Nothing ->
-                  HH.slot
-                    _createGame
-                    unit
-                    createGameComponent
-                    (activePlayerId /\ openGames)
-                    case _ of
-                      CreateGame width height -> Hooks.raise outputToken $ Message.CreateRequest { width, height }
-                      CloseGame gameId -> pure unit
-            ]
-        , HH.div
-            [ HCSS.style do
-                CSS.key (CSS.fromString "grid-area") "header"
                 CSS.display CSS.flex
                 CSS.justifyContent CSS.spaceBetween
                 CSS.alignItems CSSCommon.center
@@ -301,6 +246,60 @@ appComponent =
                     signinComponent
                     openGames
                     \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
+                ]
+            ]
+        , HH.div
+            [ HCSS.style do
+                CSS.height $ CSS.pct 100.0
+                CSS.display CSS.flex
+            ]
+            [ HH.div
+                [ HCSS.style do
+                    CSS.width $ CSS.rem 10.0
+                    CSS.key (CSS.fromString "resize") "horizontal"
+                    traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                    CSSOverflow.overflow CSSOverflow.overflowAuto
+                ]
+                [ HH.slot
+                    _games
+                    unit
+                    gamesComponent
+                    (activePlayerId /\ games)
+                    \gameId -> when (Maybe.Just gameId /= watchingGameId) do
+                      Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                      Hooks.put watchingGameIdId $ Maybe.Just gameId
+                      Hooks.raise outputToken $ Message.SubscribeRequest gameId
+                , HH.slot
+                    _openGames
+                    unit
+                    openGamesComponent
+                    (activePlayerId /\ openGames)
+                    \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
+                ]
+            , HH.div_
+                [ case activeGame of
+                    Maybe.Just (gameId /\ fields) ->
+                      HH.slot
+                        _field
+                        unit
+                        fieldComponent
+                        fields
+                        \(Click (Tuple x y)) ->
+                          let
+                            game = Map.lookup gameId games
+                          in
+                            when (Maybe.isJust activePlayerId && (map _.redPlayerId game == activePlayerId || map _.blackPlayerId game == activePlayerId))
+                              $ Hooks.raise outputToken
+                              $ Message.PutPointRequest gameId { x, y }
+                    Maybe.Nothing ->
+                      HH.slot
+                        _createGame
+                        unit
+                        createGameComponent
+                        (activePlayerId /\ openGames)
+                        case _ of
+                          CreateGame width height -> Hooks.raise outputToken $ Message.CreateRequest { width, height }
+                          CloseGame gameId -> pure unit
                 ]
             ]
         ]
