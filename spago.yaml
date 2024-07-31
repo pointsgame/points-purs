@@ -18,10 +18,13 @@ package:
     - argonaut-generic
     - coroutines
     - aff-coroutines
+    - exceptions
+    - refs
     - halogen
     - halogen-hooks
     - halogen-css
     - web-url
+    - js-timers
 workspace:
   backend:
     cmd: "purs-backend-es"

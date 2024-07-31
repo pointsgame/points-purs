@@ -31,6 +31,9 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
+import Effect.Ref (Ref)
+import Effect.Ref as Ref
+import Effect.Timer as Timer
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
 import Foreign (readString)
@@ -68,26 +71,42 @@ foreign import eventData :: forall d. Event -> d
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
 
--- TODO: reconnect: https://stackoverflow.com/questions/22431751/websocket-how-to-automatically-reconnect-after-it-dies
 -- TODO: refresh on error: https://stackoverflow.com/questions/14787480/page-refresh-in-case-of-javascript-errors
-wsProducer :: WS.WebSocket -> CR.Producer Message.Response Aff Unit
-wsProducer socket = CRA.produce \emitter -> do
-  listener <- EET.eventListener \ev ->
-    for_ (ME.fromEvent ev) \msgEvent ->
-      for_ (Either.either (const Maybe.Nothing) Maybe.Just $ runExcept $ readString $ ME.data_ msgEvent) \msg -> do
-        response <- Either.either
-          (\e -> liftEffect $ Exception.throwException $ Exception.error $ "Invalid response: " <> show e)
-          pure
-          (parseJson msg >>= decodeJson)
-        emit emitter response
-  EET.addEventListener
-    WSET.onMessage
-    listener
-    false
-    (WS.toEventTarget socket)
+wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
+wsProducer socketRef socketEffect = CRA.produce \emitter ->
+  let
+    addListeners = do
+      messageListener <- EET.eventListener \ev ->
+        for_ (ME.fromEvent ev) \msgEvent ->
+          for_ (Either.either (const Maybe.Nothing) Maybe.Just $ runExcept $ readString $ ME.data_ msgEvent) \msg -> do
+            response <- Either.either
+              (\e -> liftEffect $ Exception.throwException $ Exception.error $ "Invalid response: " <> show e)
+              pure
+              (parseJson msg >>= decodeJson)
+            emit emitter response
+      closeListener <- EET.eventListener $ const do
+        Console.warn "WebSocket is disconnected"
+        void $ Timer.setTimeout 1000 $ do
+          newSocket <- socketEffect
+          Ref.write newSocket socketRef
+          addListeners
+      socket <- Ref.read socketRef
+      let eventTarget = WS.toEventTarget socket
+      EET.addEventListener
+        WSET.onMessage
+        messageListener
+        false
+        eventTarget
+      EET.addEventListener
+        WSET.onClose
+        closeListener
+        true
+        eventTarget
+  in
+    addListeners
 
-wsSender :: WS.WebSocket -> Message.Request -> Effect Unit
-wsSender socket = WS.sendString socket <<< stringify <<< encodeJson
+wsSender :: Ref WS.WebSocket -> Message.Request -> Effect Unit
+wsSender socket message = Ref.read socket >>= \s -> WS.sendString s $ stringify $ encodeJson message
 
 type Game = { redPlayerId :: Message.PlayerId, blackPlayerId :: Message.PlayerId, size :: Message.FieldSize }
 type OpenGame = { playerId :: Message.PlayerId, size :: Message.FieldSize }
@@ -268,6 +287,10 @@ appComponent =
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
+          Message.InitResponse openGamesInput' gamesInput' -> do
+            Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput'
+            Hooks.put gamesId $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
+            Maybe.maybe (pure unit) (\gameId -> Hooks.raise outputToken $ Message.SubscribeRequest gameId) watchingGameId
           Message.GameInitResponse gameId moves ->
             if Maybe.Just gameId == watchingGameId then
               Hooks.put activeGameId $ Maybe.Just $ gameId /\ Array.foldl
@@ -306,7 +329,6 @@ appComponent =
                   $ NonEmptyList.head fields
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
-          _ -> pure unit
         pure $ Maybe.Just a
 
     Hooks.pure
@@ -425,17 +447,19 @@ main = do
   window <- HTML.window
   redirect <- checkRedirect window
   unless redirect do
-    connection <- WS.create "ws://127.0.0.1:8080" []
+    let connectionEffect = WS.create "ws://127.0.0.1:8080" []
+    connection <- connectionEffect
+    connectionRef <- Ref.new connection
     listener <- EET.eventListener \event -> do
       let data' = eventData event
-      wsSender connection $ Message.AuthRequest data'.code data'.state
+      wsSender connectionRef $ Message.AuthRequest data'.code data'.state
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
     HA.runHalogenAff do
       body <- HA.awaitBody
-      CR.runProcess $ wsProducer connection CR.$$ do
+      CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
         openGames /\ games <- CR.await >>= case _ of
           Message.InitResponse openGames games -> pure $ openGames /\ games
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
         io <- lift $ runUI appComponent (openGames /\ games) body
-        _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connection
+        _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
         CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
