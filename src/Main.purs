@@ -400,6 +400,7 @@ appComponent =
                 ]
             , HH.div
                 [ HCSS.style do
+                    CSS.backgroundColor CSS.white
                     CSS.flexGrow 2.0
                     CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]

@@ -16,7 +16,7 @@ import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, fillRect, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
 
 type DrawSettings =
@@ -24,7 +24,6 @@ type DrawSettings =
   , vReflection :: Boolean
   , gridThickness :: Int
   , gridColor :: String
-  , backgroundColor :: String
   , redColor :: String
   , blackColor :: String
   , pointRadius :: Number
@@ -38,7 +37,6 @@ defaultDrawSettings =
   , vReflection: false
   , gridThickness: 2
   , gridColor: "dimgray"
-  , backgroundColor: "white"
   , redColor: "red"
   , blackColor: "black"
   , pointRadius: 1.0
@@ -105,7 +103,6 @@ draw
   , vReflection
   , gridThickness
   , gridColor
-  , backgroundColor
   , redColor
   , blackColor
   , pointRadius
@@ -129,8 +126,7 @@ draw
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
     --Rendering background.
     setGlobalAlpha context 1.0
-    setFillStyle context backgroundColor
-    fillRect context { x: 0.0, y: 0.0, width, height }
+    clearRect context { x: 0.0, y: 0.0, width, height }
     --Rendering grig.
     setLineWidth context $ toNumber gridThickness
     setStrokeStyle context gridColor
