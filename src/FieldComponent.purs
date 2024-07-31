@@ -3,9 +3,10 @@ module FieldComponent where
 import Prelude
 
 import CSS as CSS
+import CSS.Overflow as CSSOverflow
 import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
-import Data.Foldable (traverse_)
+import Data.Foldable (traverse_, for_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe (Maybe(..))
@@ -71,25 +72,27 @@ fieldComponent =
     size /\ sizeId <- Hooks.useState Nothing
 
     Hooks.useLifecycleEffect do
+      let
+        setSize = void $ runMaybeT $ (lift <<< Hooks.put sizeId) =<< mapMaybeT liftEffect do
+          canvas <- wrap $ getCanvasElementById "canvas"
+          parent <- wrap $ parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas
+          width <- lift $ clientWidth parent
+          height <- lift $ clientHeight parent
+          pure $ Just { width, height }
+      setSize
       window <- liftEffect HTML.window
       subscriptionId <- Hooks.subscribe do
         HQE.eventListener
           (EventType "resize")
           (Window.toEventTarget window)
-          ( Event.target >=> Window.fromEventTarget >>> map
-              ( \w -> do
-                  width <- liftEffect $ Window.innerWidth w
-                  height <- liftEffect $ Window.innerHeight w
-                  Hooks.put sizeId (Just $ Tuple width height)
-              )
-          )
+          (Event.target >=> Window.fromEventTarget >>> map (const setSize))
       pure $ Just $ Hooks.unsubscribe subscriptionId
 
     Hooks.captures { size, input } Hooks.useTickEffect do
       let
-        setCanvasSize canvas = bind (parentElement $ HTMLCanvasElement.toNode $ toHTMLCanvasElement canvas) $ traverse_ \parent -> do
-          clientWidth parent >>= setCanvasWidth canvas
-          clientHeight parent >>= setCanvasHeight canvas
+        setCanvasSize canvas = for_ size \{ width, height } -> do
+          setCanvasWidth canvas width
+          setCanvasHeight canvas height
       liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
         setCanvasSize canvas
         width <- getCanvasWidth canvas
@@ -105,6 +108,7 @@ fieldComponent =
           CSS.position CSS.relative
           CSS.width $ CSS.pct 100.0
           CSS.height $ CSS.pct 100.0
+          CSSOverflow.overflow CSSOverflow.hidden
       ]
       [ HH.canvas
           [ HP.id "canvas"
