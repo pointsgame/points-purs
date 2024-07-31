@@ -198,6 +198,8 @@ appComponent =
             Hooks.put activePlayerIdId $ Maybe.Just playerId
           Message.CreateResponse gameId playerId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId { playerId, size }
+          Message.CloseResponse gameId ->
+            Hooks.modify_ openGamesId $ Map.delete gameId
           Message.StartResponse gameId redPlayerId blackPlayerId -> do
             case Map.lookup gameId openGames of
               Maybe.Nothing -> liftEffect $ Console.warn $ "No open game with id " <> gameId
@@ -299,7 +301,7 @@ appComponent =
                         (activePlayerId /\ openGames)
                         case _ of
                           CreateGame width height -> Hooks.raise outputToken $ Message.CreateRequest { width, height }
-                          CloseGame gameId -> pure unit
+                          CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
                 ]
             ]
         ]

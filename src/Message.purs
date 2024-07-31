@@ -57,6 +57,7 @@ data Request
   = GetAuthUrlRequest AuthProvider
   | AuthRequest String String
   | CreateRequest FieldSize
+  | CloseRequest GameId
   | JoinRequest GameId
   | SubscribeRequest GameId
   | UnsubscribeRequest GameId
@@ -73,6 +74,7 @@ instance EncodeJson Request where
   encodeJson (GetAuthUrlRequest provider) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> jsonEmptyObject
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
+  encodeJson (CloseRequest gameId) = "command" := "Close" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (UnsubscribeRequest gameId) = "command" := "Unsubscribe" ~> "gameId" := gameId ~> jsonEmptyObject
@@ -84,6 +86,7 @@ data Response
   | AuthUrlResponse String
   | AuthResponse PlayerId
   | CreateResponse GameId PlayerId FieldSize
+  | CloseResponse GameId
   | StartResponse GameId PlayerId PlayerId
   | PutPointResponse GameId Coordinate JsonPlayer
 
@@ -104,6 +107,7 @@ instance DecodeJson Response where
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
+      "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "redPlayerId" <*> obj .: "blackPlayerId"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"
       other -> Left $ UnexpectedValue $ encodeJson other
