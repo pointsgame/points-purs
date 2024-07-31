@@ -367,7 +367,9 @@ appComponent =
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
                 ]
             , HH.div
-                [ HCSS.style $ CSS.flexGrow 2.0
+                [ HCSS.style do
+                    CSS.flexGrow 2.0
+                    CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]
                 [ case activeGame of
                     Maybe.Just (gameId /\ fields) ->
