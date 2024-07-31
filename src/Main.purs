@@ -291,12 +291,16 @@ appComponent =
                 traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                 CSS.height $ CSS.rem 1.5
             ]
-            [ HH.slot
-                _signin
-                unit
-                signinComponent
-                openGames
-                \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
+            [ HH.div
+                [ HCSS.style $ CSS.marginLeft CSSCommon.auto
+                ]
+                [ HH.slot
+                    _signin
+                    unit
+                    signinComponent
+                    openGames
+                    \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
+                ]
             ]
         ]
 
