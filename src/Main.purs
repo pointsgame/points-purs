@@ -65,9 +65,6 @@ import Web.URL.URLSearchParams as URLSearchParams
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
 foreign import eventData :: forall d. Event -> d
 
-fr :: Number -> CSS.Size CSS.LengthUnit
-fr i = CSS.BasicSize (CSS.value i <> CSS.fromString "fr")
-
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
 
