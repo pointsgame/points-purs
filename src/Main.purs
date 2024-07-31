@@ -4,6 +4,7 @@ import Prelude
 
 import CSS as CSS
 import CSS.Common as CSSCommon
+import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
@@ -36,6 +37,7 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
@@ -149,16 +151,63 @@ createGameComponent =
 _signin :: Proxy "signin"
 _signin = Proxy
 
+buttonStyle :: CSS.CSS
+buttonStyle = do
+  traverse_ CSS.color $ CSS.fromHexString "#333"
+  CSS.key (CSS.fromString "border") "none"
+  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+  CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+  CSS.cursor CSSCursor.pointer
+
+data SignInOutput = SignIn Message.AuthProvider | SignInTest --- | SignOut
+
 signinComponent
   :: forall query input m
    . MonadAff m
-  => H.Component query input Unit m
+  => H.Component query input SignInOutput m
 signinComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
-    Hooks.pure $ HH.button
-      [ HE.onClick $ const $ Hooks.raise outputToken unit
+    Hooks.pure $ HH.div
+      [ HP.id "sign-in"
+      , HCSS.style $ CSS.position $ CSS.relative
       ]
-      [ HH.text "Sign in" ]
+      [ HH.button
+          [ HP.id "sign-in-btn"
+          , HCSS.style buttonStyle
+          ]
+          [ HH.text "Sign in" ]
+      , HH.div
+          [ HP.id "sign-in-list"
+          , HCSS.style do
+              CSS.position CSS.absolute
+              CSS.top $ CSS.pct 100.0
+              CSS.right $ CSS.px 0.0
+              traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
+              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+              CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
+              CSS.zIndex 1
+          ]
+          [ HH.div
+              [ HCSS.style do
+                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+              ]
+              [ HH.button
+                  [ HP.class_ $ wrap "sign-in-provider"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken $ SignIn Message.GoogleAuthProvider
+                  ]
+                  [ HH.text "Google" ]
+              ]
+          , HH.div_
+              [ HH.button
+                  [ HP.class_ $ wrap "sign-in-provider"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken SignInTest
+                  ]
+                  [ HH.text "Test" ]
+              ]
+          ]
+      ]
 
 _field :: Proxy "field"
 _field = Proxy
@@ -235,9 +284,8 @@ appComponent =
                 CSS.justifyContent CSS.spaceBetween
                 CSS.alignItems CSSCommon.center
                 CSS.padding (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5)
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f2f2f2"
                 traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                CSS.height $ CSS.rem 1.5
             ]
             [ HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
@@ -247,7 +295,9 @@ appComponent =
                     unit
                     signinComponent
                     openGames
-                    \_ -> Hooks.raise outputToken $ Message.GetAuthUrlRequest Message.GoogleAuthProvider
+                    case _ of
+                      SignIn provider -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider
+                      SignInTest -> Hooks.raise outputToken $ Message.AuthTestRequest "test"
                 ]
             ]
         , HH.div

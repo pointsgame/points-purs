@@ -56,6 +56,7 @@ instance Show AuthProvider where
 data Request
   = GetAuthUrlRequest AuthProvider
   | AuthRequest String String
+  | AuthTestRequest String
   | CreateRequest FieldSize
   | CloseRequest GameId
   | JoinRequest GameId
@@ -73,6 +74,7 @@ instance Show Request where
 instance EncodeJson Request where
   encodeJson (GetAuthUrlRequest provider) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> jsonEmptyObject
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
+  encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
   encodeJson (CloseRequest gameId) = "command" := "Close" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
