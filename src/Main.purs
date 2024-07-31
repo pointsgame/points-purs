@@ -235,6 +235,7 @@ appComponent =
         [ HH.div
             [ HCSS.style do
                 CSS.key (CSS.fromString "grid-area") "games"
+                traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                 CSSOverflow.overflow CSSOverflow.overflowAuto
             ]
             [ HH.slot
