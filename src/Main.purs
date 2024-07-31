@@ -288,9 +288,18 @@ appComponent =
       AppQuery response a -> do
         case response of
           Message.InitResponse openGamesInput' gamesInput' -> do
+            let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
             Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput'
-            Hooks.put gamesId $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
-            Maybe.maybe (pure unit) (\gameId -> Hooks.raise outputToken $ Message.SubscribeRequest gameId) watchingGameId
+            Hooks.put gamesId games'
+            Maybe.maybe (pure unit)
+              ( \gameId ->
+                  if Map.member gameId games' then
+                    Hooks.raise outputToken $ Message.SubscribeRequest gameId
+                  else
+                    -- Should we switch here if games are persisted?
+                    Hooks.put watchingGameIdId Maybe.Nothing
+              )
+              watchingGameId
           Message.GameInitResponse gameId moves ->
             if Maybe.Just gameId == watchingGameId then
               Hooks.put activeGameId $ Maybe.Just $ gameId /\ Array.foldl
