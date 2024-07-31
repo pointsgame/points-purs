@@ -21,6 +21,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
@@ -43,9 +44,12 @@ import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Type.Proxy (Proxy(..))
+import Web.DOM.NonElementParentNode (getElementById)
 import Web.Event.Event (Event)
 import Web.Event.EventTarget as EET
 import Web.HTML as HTML
+import Web.HTML.HTMLDocument as Document
+import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.Location as Location
 import Web.HTML.Window (Window)
 import Web.HTML.Window as Window
@@ -159,7 +163,7 @@ buttonStyle = do
   CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
   CSS.cursor CSSCursor.pointer
 
-data SignInOutput = SignIn Message.AuthProvider | SignInTest --- | SignOut
+data SignInOutput = SignIn Message.AuthProvider | SignInTest String --- | SignOut
 
 signinComponent
   :: forall query input m
@@ -198,13 +202,28 @@ signinComponent =
                   ]
                   [ HH.text "Google" ]
               ]
-          , HH.div_
+          , HH.div
+              [ HCSS.style $ CSS.display CSS.flex
+              ]
               [ HH.button
                   [ HP.class_ $ wrap "sign-in-provider"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken SignInTest
+                  , HE.onClick $ const $ do
+                      maybeName <- liftEffect do
+                        window <- HTML.window
+                        document <- Window.document window
+                        maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode document)
+                        traverse HTMLInputElement.value maybeInput
+                      for_ maybeName \name -> do
+                        Hooks.raise outputToken $ SignInTest name
                   ]
                   [ HH.text "Test" ]
+              , HH.input
+                  [ HP.id "test-name"
+                  , HCSS.style do
+                      CSS.width $ CSS.rem 4.0
+                      CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+                  ]
               ]
           ]
       ]
@@ -297,7 +316,7 @@ appComponent =
                     openGames
                     case _ of
                       SignIn provider -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider
-                      SignInTest -> Hooks.raise outputToken $ Message.AuthTestRequest "test"
+                      SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
                 ]
             ]
         , HH.div
