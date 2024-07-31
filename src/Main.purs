@@ -262,6 +262,12 @@ appComponent =
       subscriptionId <- Hooks.subscribe emitter
       pure $ Maybe.Just $ Hooks.unsubscribe subscriptionId
 
+    let
+      switchToGame gameId = do
+        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+        Hooks.put watchingGameIdId $ Maybe.Just gameId
+        Hooks.raise outputToken $ Message.SubscribeRequest gameId
+
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
@@ -291,6 +297,7 @@ appComponent =
               Maybe.Just { size } -> do
                 Hooks.modify_ openGamesId $ Map.delete gameId
                 Hooks.modify_ gamesId $ Map.insert gameId { redPlayerId, blackPlayerId, size }
+                when (activePlayerId == Maybe.Just redPlayerId || activePlayerId == Maybe.Just blackPlayerId) $ switchToGame gameId
           Message.PutPointResponse gameId coordinate player ->
             case activeGame of
               Maybe.Just (activeGameId' /\ fields) | gameId == activeGameId' ->
@@ -355,10 +362,7 @@ appComponent =
                     unit
                     gamesComponent
                     (activePlayerId /\ games)
-                    \gameId -> when (Maybe.Just gameId /= watchingGameId) do
-                      Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
-                      Hooks.put watchingGameIdId $ Maybe.Just gameId
-                      Hooks.raise outputToken $ Message.SubscribeRequest gameId
+                    \gameId -> when (Maybe.Just gameId /= watchingGameId) $ switchToGame gameId
                 , HH.slot
                     _openGames
                     unit
