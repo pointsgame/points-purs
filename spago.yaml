@@ -31,6 +31,7 @@ workspace:
     args:
       - "build"
       - "--int-tags"
+      - "--output-dir=output"
   packageSet:
     registry: 55.0.0
   extraPackages: {}
