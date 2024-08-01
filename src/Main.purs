@@ -223,6 +223,17 @@ signinComponent =
                   [ HH.text "Google" ]
               ]
           , HH.div
+              [ HCSS.style do
+                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+              ]
+              [ HH.button
+                  [ HP.class_ $ wrap "sign-in-provider"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken $ SignIn Message.GitLabAuthProvider
+                  ]
+                  [ HH.text "GitLab" ]
+              ]
+          , HH.div
               [ HCSS.style $ CSS.display CSS.flex
               ]
               [ HH.button

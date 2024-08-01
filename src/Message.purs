@@ -41,7 +41,7 @@ type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
 type Game = { gameId :: GameId, redPlayerId :: PlayerId, blackPlayerId :: PlayerId, size :: FieldSize }
 
-data AuthProvider = GoogleAuthProvider
+data AuthProvider = GoogleAuthProvider | GitLabAuthProvider
 
 derive instance Generic AuthProvider _
 
@@ -49,6 +49,7 @@ derive instance Eq AuthProvider
 
 instance EncodeJson AuthProvider where
   encodeJson GoogleAuthProvider = encodeJson "Google"
+  encodeJson GitLabAuthProvider = encodeJson "GitLab"
 
 instance Show AuthProvider where
   show = genericShow
