@@ -63,6 +63,7 @@ import Web.HTML.Window as Window
 import Web.Socket.Event.EventTypes as WSET
 import Web.Socket.Event.MessageEvent as ME
 import Web.Socket.WebSocket as WS
+import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.URL.URLSearchParams as URLSearchParams
 
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
@@ -236,10 +237,12 @@ signinComponent =
           , HH.div
               [ HCSS.style $ CSS.display CSS.flex
               ]
-              [ HH.button
-                  [ HP.class_ $ wrap "sign-in-provider"
-                  , HCSS.style buttonStyle
-                  , HE.onClick $ const $ do
+              [ HH.input
+                  [ HP.id "test-name"
+                  , HCSS.style do
+                      CSS.width $ CSS.rem 4.0
+                      CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+                  , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
                       maybeName <- liftEffect do
                         window <- HTML.window
                         document <- Window.document window
@@ -247,13 +250,6 @@ signinComponent =
                         traverse HTMLInputElement.value maybeInput
                       for_ maybeName \name -> do
                         Hooks.raise outputToken $ SignInTest name
-                  ]
-                  [ HH.text "Test" ]
-              , HH.input
-                  [ HP.id "test-name"
-                  , HCSS.style do
-                      CSS.width $ CSS.rem 4.0
-                      CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
                   ]
               ]
           ]
