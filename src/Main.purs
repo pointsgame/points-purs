@@ -455,8 +455,14 @@ appComponent =
                                       map _.blackPlayerId game == activePlayerId && nextPlayer == Player.Black
                                   )
                               )
-                              $ Hooks.raise outputToken
-                              $ Message.PutPointRequest gameId { x, y }
+                              do
+                                Hooks.put activeGameId
+                                  $ Maybe.Just
+                                  $ (/\) gameId
+                                  $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
+                                  $ Field.putPoint (Tuple x y) nextPlayer
+                                  $ NonEmptyList.head fields
+                                Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
                     Maybe.Nothing ->
                       HH.slot
                         _createGame
