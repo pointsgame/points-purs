@@ -66,6 +66,7 @@ import Web.Socket.WebSocket as WS
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.URL.URLSearchParams as URLSearchParams
 
+foreign import setCookie :: String -> Effect Unit
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
 foreign import eventData :: forall d. Event -> d
 
@@ -263,10 +264,10 @@ data AppQuery a = AppQuery Message.Response a
 appComponent
   :: forall m
    . MonadAff m
-  => H.Component AppQuery (Array Message.OpenGame /\ Array Message.Game) Message.Request m
+  => H.Component AppQuery (Maybe Message.PlayerId /\ Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
-  Hooks.component \{ queryToken, outputToken, slotToken } (openGamesInput /\ gamesInput) -> Hooks.do
-    activePlayerId /\ activePlayerIdId <- Hooks.useState Maybe.Nothing
+  Hooks.component \{ queryToken, outputToken, slotToken } (playerIdInput /\ openGamesInput /\ gamesInput) -> Hooks.do
+    activePlayerId /\ activePlayerIdId <- Hooks.useState playerIdInput
     openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
     games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
@@ -294,7 +295,8 @@ appComponent =
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
-          Message.InitResponse openGamesInput' gamesInput' -> do
+          Message.InitResponse playerIdInput' openGamesInput' gamesInput' -> do
+            Hooks.put activePlayerIdId playerIdInput'
             let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
             Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput'
             Hooks.put gamesId games'
@@ -321,8 +323,9 @@ appComponent =
             window <- HTML.window
             _ <- Window.open url "_blank" "" window
             pure unit
-          Message.AuthResponse playerId ->
+          Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
+            liftEffect $ setCookie cookie
           Message.CreateResponse gameId playerId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId { playerId, size }
           Message.CloseResponse gameId ->
@@ -374,7 +377,7 @@ appComponent =
                     signinComponent
                     openGames
                     case _ of
-                      SignIn provider -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider
+                      SignIn provider -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider true
                       SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
                 ]
             ]
@@ -464,7 +467,7 @@ main = do
   window <- HTML.window
   redirect <- checkRedirect window
   unless redirect do
-    let connectionEffect = WS.create "ws://127.0.0.1:8080" []
+    let connectionEffect = WS.create "wss://kropki.org/ws" []
     connection <- connectionEffect
     connectionRef <- Ref.new connection
     listener <- EET.eventListener \event -> do
@@ -474,9 +477,9 @@ main = do
     HA.runHalogenAff do
       body <- HA.awaitBody
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
-        openGames /\ games <- CR.await >>= case _ of
-          Message.InitResponse openGames games -> pure $ openGames /\ games
+        playerId /\ openGames /\ games <- CR.await >>= case _ of
+          Message.InitResponse playerId openGames games -> pure $ playerId /\ openGames /\ games
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
-        io <- lift $ runUI appComponent (openGames /\ games) body
+        io <- lift $ runUI appComponent (playerId /\ openGames /\ games) body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
         CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing

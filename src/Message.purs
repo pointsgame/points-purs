@@ -2,9 +2,10 @@ module Message where
 
 import Prelude
 
-import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (:=), (~>))
+import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (.:!), (:=), (~>))
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
+import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, wrap)
 import Data.Show.Generic (genericShow)
 import Player (Player)
@@ -55,7 +56,7 @@ instance Show AuthProvider where
   show = genericShow
 
 data Request
-  = GetAuthUrlRequest AuthProvider
+  = GetAuthUrlRequest AuthProvider Boolean
   | AuthRequest String String
   | AuthTestRequest String
   | CreateRequest FieldSize
@@ -73,7 +74,7 @@ instance Show Request where
   show = genericShow
 
 instance EncodeJson Request where
-  encodeJson (GetAuthUrlRequest provider) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> jsonEmptyObject
+  encodeJson (GetAuthUrlRequest provider rememberMe) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> "rememberMe" := rememberMe ~> jsonEmptyObject
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
   encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
@@ -84,10 +85,10 @@ instance EncodeJson Request where
   encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
 
 data Response
-  = InitResponse (Array OpenGame) (Array Game)
+  = InitResponse (Maybe PlayerId) (Array OpenGame) (Array Game)
   | GameInitResponse GameId (Array Move)
   | AuthUrlResponse String
-  | AuthResponse PlayerId
+  | AuthResponse PlayerId String
   | CreateResponse GameId PlayerId FieldSize
   | CloseResponse GameId
   | StartResponse GameId PlayerId PlayerId
@@ -105,10 +106,10 @@ instance DecodeJson Response where
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
-      "Init" -> InitResponse <$> obj .: "openGames" <*> obj .: "games"
+      "Init" -> InitResponse <$> obj .:! "playerId" <*> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
-      "Auth" -> AuthResponse <$> obj .: "playerId"
+      "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "redPlayerId" <*> obj .: "blackPlayerId"
