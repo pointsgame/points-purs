@@ -185,7 +185,7 @@ buttonStyle = do
   CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
   CSS.cursor CSSCursor.pointer
 
-data SignInOutput = SignIn Message.AuthProvider | SignInTest String --- | SignOut
+data SignInOutput = SignIn Message.AuthProvider Boolean | SignInTest String --- | SignOut
 
 signinComponent
   :: forall query input m
@@ -193,6 +193,13 @@ signinComponent
   => H.Component query input SignInOutput m
 signinComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
+    let
+      rememebrMeEff =
+        liftEffect $ do
+          window <- HTML.window
+          document <- Window.document window
+          maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode document)
+          Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
     Hooks.pure $ HH.div
       [ HP.id "sign-in"
       , HCSS.style $ CSS.position $ CSS.relative
@@ -220,7 +227,7 @@ signinComponent =
               [ HH.button
                   [ HP.class_ $ wrap "sign-in-provider"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken $ SignIn Message.GoogleAuthProvider
+                  , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GoogleAuthProvider)
                   ]
                   [ HH.text "Google" ]
               ]
@@ -231,12 +238,13 @@ signinComponent =
               [ HH.button
                   [ HP.class_ $ wrap "sign-in-provider"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken $ SignIn Message.GitLabAuthProvider
+                  , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GitLabAuthProvider)
                   ]
                   [ HH.text "GitLab" ]
               ]
           , HH.div
-              [ HCSS.style $ CSS.display CSS.flex
+              [ HCSS.style do
+                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
               ]
               [ HH.input
                   [ HP.id "test-name"
@@ -252,6 +260,14 @@ signinComponent =
                       for_ maybeName \name -> do
                         Hooks.raise outputToken $ SignInTest name
                   ]
+              ]
+          , HH.div_
+              [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
+              , HH.label
+                  [ HP.for "remember-me"
+                  , HCSS.style $ traverse_ CSS.color $ CSS.fromHexString "#333"
+                  ]
+                  [ HH.text "Remember me" ]
               ]
           ]
       ]
@@ -377,7 +393,7 @@ appComponent =
                     signinComponent
                     openGames
                     case _ of
-                      SignIn provider -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider true
+                      SignIn provider rememberMe -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider rememberMe
                       SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
                 ]
             ]
