@@ -2,7 +2,7 @@ module Message where
 
 import Prelude
 
-import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (.:!), (:=), (~>))
+import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (.:?), (:=), (~>))
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
@@ -106,7 +106,7 @@ instance DecodeJson Response where
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
-      "Init" -> InitResponse <$> obj .:! "playerId" <*> obj .: "openGames" <*> obj .: "games"
+      "Init" -> InitResponse <$> obj .:? "playerId" <*> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"

@@ -261,11 +261,18 @@ signinComponent =
                         Hooks.raise outputToken $ SignInTest name
                   ]
               ]
-          , HH.div_
+          , HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.alignItems CSSCommon.center
+              ]
               [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
               , HH.label
                   [ HP.for "remember-me"
-                  , HCSS.style $ traverse_ CSS.color $ CSS.fromHexString "#333"
+                  , HCSS.style $ do
+                      CSS.fontSize (CSS.rem 0.75)
+                      CSS.key (CSS.fromString "white-space") "nowrap"
+                      traverse_ CSS.color $ CSS.fromHexString "#333"
                   ]
                   [ HH.text "Remember me" ]
               ]
@@ -369,8 +376,8 @@ appComponent =
     Hooks.pure
       $ HH.div
           [ HCSS.style do
-              CSS.width $ CSS.pct 100.0
-              CSS.height $ CSS.pct 100.0
+              CSS.width $ CSS.vw 100.0
+              CSS.height $ CSS.vh 100.0
               CSS.display CSS.flex
               CSS.flexDirection CSS.column
           ]
