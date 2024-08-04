@@ -188,11 +188,11 @@ buttonStyle = do
 data SignInOutput = SignIn Message.AuthProvider Boolean | SignInTest String --- | SignOut
 
 signinComponent
-  :: forall query input m
+  :: forall query m
    . MonadAff m
-  => H.Component query input SignInOutput m
+  => H.Component query (Array Message.AuthProvider) SignInOutput m
 signinComponent =
-  Hooks.component \{ outputToken } _ -> Hooks.do
+  Hooks.component \{ outputToken } authProviders -> Hooks.do
     let
       rememebrMeEff =
         liftEffect $ do
@@ -219,63 +219,76 @@ signinComponent =
               traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
               CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
               CSS.zIndex 1
-          ]
-          [ HH.div
-              [ HCSS.style do
-                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-              ]
-              [ HH.button
-                  [ HP.class_ $ wrap "sign-in-provider"
-                  , HCSS.style buttonStyle
-                  , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GoogleAuthProvider)
+          ] $ Array.concat
+          [ if Array.elem Message.GoogleAuthProvider authProviders then
+              [ HH.div
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                   ]
-                  [ HH.text "Google" ]
-              ]
-          , HH.div
-              [ HCSS.style do
-                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-              ]
-              [ HH.button
-                  [ HP.class_ $ wrap "sign-in-provider"
-                  , HCSS.style buttonStyle
-                  , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GitLabAuthProvider)
-                  ]
-                  [ HH.text "GitLab" ]
-              ]
-          , HH.div
-              [ HCSS.style do
-                  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-              ]
-              [ HH.input
-                  [ HP.id "test-name"
-                  , HCSS.style do
-                      CSS.width $ CSS.rem 4.0
-                      CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
-                  , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
-                      maybeName <- liftEffect do
-                        window <- HTML.window
-                        document <- Window.document window
-                        maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode document)
-                        traverse HTMLInputElement.value maybeInput
-                      for_ maybeName \name -> do
-                        Hooks.raise outputToken $ SignInTest name
+                  [ HH.button
+                      [ HP.class_ $ wrap "sign-in-provider"
+                      , HCSS.style buttonStyle
+                      , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GoogleAuthProvider)
+                      ]
+                      [ HH.text "Google" ]
                   ]
               ]
-          , HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.alignItems CSSCommon.center
-              ]
-              [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
-              , HH.label
-                  [ HP.for "remember-me"
-                  , HCSS.style $ do
-                      CSS.fontSize (CSS.rem 0.75)
-                      CSS.key (CSS.fromString "white-space") "nowrap"
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
+            else
+              []
+          , if Array.elem Message.GitLabAuthProvider authProviders then
+              [ HH.div
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                   ]
-                  [ HH.text "Remember me" ]
+                  [ HH.button
+                      [ HP.class_ $ wrap "sign-in-provider"
+                      , HCSS.style buttonStyle
+                      , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GitLabAuthProvider)
+                      ]
+                      [ HH.text "GitLab" ]
+                  ]
               ]
+            else
+              []
+          , if Array.elem Message.TestAuthProvider authProviders then
+              [ HH.div
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                  ]
+                  [ HH.input
+                      [ HP.id "test-name"
+                      , HCSS.style do
+                          CSS.width $ CSS.rem 4.0
+                          CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+                      , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
+                          maybeName <- liftEffect do
+                            window <- HTML.window
+                            document <- Window.document window
+                            maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode document)
+                            traverse HTMLInputElement.value maybeInput
+                          for_ maybeName \name -> do
+                            Hooks.raise outputToken $ SignInTest name
+                      ]
+                  ]
+              ]
+            else
+              []
+          , [ HH.div
+                [ HCSS.style do
+                    CSS.display CSS.flex
+                    CSS.alignItems CSSCommon.center
+                ]
+                [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
+                , HH.label
+                    [ HP.for "remember-me"
+                    , HCSS.style $ do
+                        CSS.fontSize (CSS.rem 0.75)
+                        CSS.key (CSS.fromString "white-space") "nowrap"
+                        traverse_ CSS.color $ CSS.fromHexString "#333"
+                    ]
+                    [ HH.text "Remember me" ]
+                ]
+            ]
           ]
       ]
 
@@ -287,9 +300,10 @@ data AppQuery a = AppQuery Message.Response a
 appComponent
   :: forall m
    . MonadAff m
-  => H.Component AppQuery (Maybe Message.PlayerId /\ Array Message.OpenGame /\ Array Message.Game) Message.Request m
+  => H.Component AppQuery (Array Message.AuthProvider /\ Maybe Message.PlayerId /\ Array Message.OpenGame /\ Array Message.Game) Message.Request m
 appComponent =
-  Hooks.component \{ queryToken, outputToken, slotToken } (playerIdInput /\ openGamesInput /\ gamesInput) -> Hooks.do
+  Hooks.component \{ queryToken, outputToken, slotToken } (authProvidersInput /\ playerIdInput /\ openGamesInput /\ gamesInput) -> Hooks.do
+    authProviders /\ authProvidersId <- Hooks.useState authProvidersInput
     activePlayerId /\ activePlayerIdId <- Hooks.useState playerIdInput
     openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
     games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
@@ -318,7 +332,8 @@ appComponent =
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
-          Message.InitResponse playerIdInput' openGamesInput' gamesInput' -> do
+          Message.InitResponse authProvidersInput' playerIdInput' openGamesInput' gamesInput' -> do
+            Hooks.put authProvidersId authProvidersInput'
             Hooks.put activePlayerIdId playerIdInput'
             let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
             Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput'
@@ -398,7 +413,7 @@ appComponent =
                     _signin
                     unit
                     signinComponent
-                    openGames
+                    authProviders
                     case _ of
                       SignIn provider rememberMe -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider rememberMe
                       SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
@@ -506,9 +521,9 @@ main = do
     HA.runHalogenAff do
       body <- HA.awaitBody
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
-        playerId /\ openGames /\ games <- CR.await >>= case _ of
-          Message.InitResponse playerId openGames games -> pure $ playerId /\ openGames /\ games
+        authProviders /\ playerId /\ openGames /\ games <- CR.await >>= case _ of
+          Message.InitResponse authProviders playerId openGames games -> pure $ authProviders /\ playerId /\ openGames /\ games
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
-        io <- lift $ runUI appComponent (playerId /\ openGames /\ games) body
+        io <- lift $ runUI appComponent (authProviders /\ playerId /\ openGames /\ games) body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
         CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing

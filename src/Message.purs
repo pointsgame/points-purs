@@ -42,15 +42,23 @@ type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
 type Game = { gameId :: GameId, redPlayerId :: PlayerId, blackPlayerId :: PlayerId, size :: FieldSize }
 
-data AuthProvider = GoogleAuthProvider | GitLabAuthProvider
+data AuthProvider = GoogleAuthProvider | GitLabAuthProvider | TestAuthProvider
 
 derive instance Generic AuthProvider _
 
 derive instance Eq AuthProvider
 
+instance DecodeJson AuthProvider where
+  decodeJson json = decodeJson json >>= case _ of
+    "Google" -> Right GoogleAuthProvider
+    "GitLab" -> Right GitLabAuthProvider
+    "Test" -> Right TestAuthProvider
+    other -> Left $ UnexpectedValue $ encodeJson other
+
 instance EncodeJson AuthProvider where
   encodeJson GoogleAuthProvider = encodeJson "Google"
   encodeJson GitLabAuthProvider = encodeJson "GitLab"
+  encodeJson TestAuthProvider = encodeJson "Test"
 
 instance Show AuthProvider where
   show = genericShow
@@ -85,7 +93,7 @@ instance EncodeJson Request where
   encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
 
 data Response
-  = InitResponse (Maybe PlayerId) (Array OpenGame) (Array Game)
+  = InitResponse (Array AuthProvider) (Maybe PlayerId) (Array OpenGame) (Array Game)
   | GameInitResponse GameId (Array Move)
   | AuthUrlResponse String
   | AuthResponse PlayerId String
@@ -106,7 +114,7 @@ instance DecodeJson Response where
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
-      "Init" -> InitResponse <$> obj .:? "playerId" <*> obj .: "openGames" <*> obj .: "games"
+      "Init" -> InitResponse <$> obj .: "authProviders" <*> obj .:? "playerId" <*> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
