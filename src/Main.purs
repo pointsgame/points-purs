@@ -6,6 +6,7 @@ import CSS as CSS
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
+import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
@@ -124,10 +125,27 @@ gamesComponent
 gamesComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ [ HH.div_ [ HH.text "Games" ] ] <>
+      $
+        [ HH.div
+            [ HCSS.style do
+                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
+                traverse_ CSS.color $ CSS.fromHexString "#333"
+                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                CSSTextAlign.textAlign CSSTextAlign.center
+            ]
+            [ HH.text "Games"
+            ]
+        ] <>
           ( map
               ( \(Tuple gameId { size }) -> HH.div
-                  [ HE.onClick $ const $ Hooks.raise outputToken gameId ]
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                      traverse_ CSS.color $ CSS.fromHexString "#333"
+                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                      CSS.cursor CSSCursor.pointer
+                  , HE.onClick $ const $ Hooks.raise outputToken gameId
+                  ]
                   [ HH.text $ show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered games
@@ -143,10 +161,26 @@ openGamesComponent
 openGamesComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ [ HH.div_ [ HH.text "Open games" ] ] <>
+      $
+        [ HH.div
+            [ HCSS.style do
+                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
+                traverse_ CSS.color $ CSS.fromHexString "#333"
+                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                CSSTextAlign.textAlign CSSTextAlign.center
+            ]
+            [ HH.text "Open games"
+            ]
+        ] <>
           ( map
               ( \(Tuple gameId { size }) -> HH.div
-                  [ HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                      traverse_ CSS.color $ CSS.fromHexString "#333"
+                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                      CSS.cursor CSSCursor.pointer
+                  , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
                   [ HH.text $ show size.width <> "x" <> show size.height ]
