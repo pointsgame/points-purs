@@ -316,6 +316,7 @@ signinComponent =
                 [ HCSS.style do
                     CSS.display CSS.flex
                     CSS.alignItems CSSCommon.center
+                    CSS.padding (CSS.px 2.0) (CSS.px 0.0) (CSS.px 2.0) (CSS.px 0.0)
                 ]
                 [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
                 , HH.label
