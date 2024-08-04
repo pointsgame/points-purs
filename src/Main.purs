@@ -6,6 +6,7 @@ import CSS as CSS
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
+import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
@@ -407,6 +408,28 @@ appComponent =
                 traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
             ]
             [ HH.div
+                [ HCSS.style $ CSS.cursor CSSCursor.pointer
+                , HE.onClick $ const do
+                    Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                    Hooks.put watchingGameIdId Maybe.Nothing
+                    Hooks.put activeGameId Maybe.Nothing
+                ]
+                [ HH.img
+                    [ HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+                    , HP.src "logo.svg"
+                    , HP.width 24
+                    ]
+                , HH.label
+                    [ HCSS.style do
+                        CSS.cursor CSSCursor.pointer
+                        CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+                        CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+                        traverse_ CSS.color $ CSS.fromHexString "#333"
+                    ]
+                    [ HH.text "Kropki"
+                    ]
+                ]
+            , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
                 [ HH.slot
