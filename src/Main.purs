@@ -124,12 +124,14 @@ gamesComponent
 gamesComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map
-          ( \(Tuple gameId { size }) -> HH.div
-              [ HE.onClick $ const $ Hooks.raise outputToken gameId ]
-              [ HH.text $ show size.width <> ":" <> show size.height ]
+      $ [ HH.div_ [ HH.text "Games" ] ] <>
+          ( map
+              ( \(Tuple gameId { size }) -> HH.div
+                  [ HE.onClick $ const $ Hooks.raise outputToken gameId ]
+                  [ HH.text $ show size.width <> "x" <> show size.height ]
+              )
+              $ Map.toUnfoldableUnordered games
           )
-      $ Map.toUnfoldableUnordered games
 
 _openGames :: Proxy "openGames"
 _openGames = Proxy
@@ -141,14 +143,16 @@ openGamesComponent
 openGamesComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $ HH.div_
-      $ map
-          ( \(Tuple gameId { size }) -> HH.div
-              [ HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
-                  Hooks.raise outputToken gameId
-              ]
-              [ HH.text $ show size.width <> ":" <> show size.height ]
+      $ [ HH.div_ [ HH.text "Open games" ] ] <>
+          ( map
+              ( \(Tuple gameId { size }) -> HH.div
+                  [ HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
+                      Hooks.raise outputToken gameId
+                  ]
+                  [ HH.text $ show size.width <> "x" <> show size.height ]
+              )
+              $ Map.toUnfoldableUnordered openGames
           )
-      $ Map.toUnfoldableUnordered openGames
 
 _createGame :: Proxy "createGame"
 _createGame = Proxy
