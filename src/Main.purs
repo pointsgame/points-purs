@@ -114,6 +114,7 @@ wsSender socket message = Ref.read socket >>= \s -> WS.sendString s $ stringify 
 
 type Game = { redPlayerId :: Message.PlayerId, blackPlayerId :: Message.PlayerId, size :: Message.FieldSize }
 type OpenGame = { playerId :: Message.PlayerId, size :: Message.FieldSize }
+type Player = { nickname :: String }
 
 _games :: Proxy "games"
 _games = Proxy
@@ -186,6 +187,40 @@ openGamesComponent =
                   [ HH.text $ show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered openGames
+          )
+
+_players :: Proxy "players"
+_players = Proxy
+
+playersComponent
+  :: forall query output m
+   . MonadAff m
+  => H.Component query (Map Message.PlayerId Player) output m
+playersComponent =
+  Hooks.component \_ players -> Hooks.do
+    Hooks.pure $ HH.div_
+      $
+        [ HH.div
+            [ HCSS.style do
+                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
+                traverse_ CSS.color $ CSS.fromHexString "#333"
+                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                CSSTextAlign.textAlign CSSTextAlign.center
+            ]
+            [ HH.text "Players"
+            ]
+        ] <>
+          ( map
+              ( \(Tuple _ { nickname }) -> HH.div
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                      traverse_ CSS.color $ CSS.fromHexString "#333"
+                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                  ]
+                  [ HH.text nickname ]
+              )
+              $ Map.toUnfoldableUnordered players
           )
 
 _createGame :: Proxy "createGame"
@@ -521,6 +556,11 @@ appComponent =
                     openGamesComponent
                     (activePlayerId /\ openGames)
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
+                , HH.slot_
+                    _players
+                    unit
+                    playersComponent
+                    players
                 ]
             , HH.div
                 [ HCSS.style do
