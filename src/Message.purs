@@ -8,24 +8,23 @@ import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, wrap)
 import Data.Show.Generic (genericShow)
-import Player (Player)
 import Player as Player
 
-newtype JsonPlayer = JsonPlayer Player
+newtype Color = Color Player.Player
 
-derive instance Newtype JsonPlayer _
+derive instance Newtype Color _
 
-instance DecodeJson JsonPlayer where
+instance DecodeJson Color where
   decodeJson json = decodeJson json >>= case _ of
     "Red" -> pure $ wrap Player.Red
     "Black" -> pure $ wrap Player.Black
     other -> Left $ UnexpectedValue $ encodeJson other
 
-derive instance Generic JsonPlayer _
+derive instance Generic Color _
 
-derive instance Eq JsonPlayer
+derive instance Eq Color
 
-instance Show JsonPlayer where
+instance Show Color where
   show = genericShow
 
 type GameId = String
@@ -36,11 +35,13 @@ type FieldSize = { width :: Int, height :: Int }
 
 type Coordinate = { x :: Int, y :: Int }
 
-type Move = { coordinate :: Coordinate, player :: JsonPlayer }
+type Move = { coordinate :: Coordinate, player :: Color }
 
 type OpenGame = { gameId :: GameId, playerId :: PlayerId, size :: FieldSize }
 
 type Game = { gameId :: GameId, redPlayerId :: PlayerId, blackPlayerId :: PlayerId, size :: FieldSize }
+
+type Player = { playerId :: PlayerId, nickname :: String }
 
 data AuthProvider = GoogleAuthProvider | GitLabAuthProvider | TestAuthProvider
 
@@ -93,14 +94,16 @@ instance EncodeJson Request where
   encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
 
 data Response
-  = InitResponse (Array AuthProvider) (Maybe PlayerId) (Array OpenGame) (Array Game)
+  = InitResponse (Array AuthProvider) (Maybe PlayerId) (Array Player) (Array OpenGame) (Array Game)
   | GameInitResponse GameId (Array Move)
   | AuthUrlResponse String
   | AuthResponse PlayerId String
+  | PlayerJoinedResponse Player
+  | PlayerLeftResponse PlayerId
   | CreateResponse GameId PlayerId FieldSize
   | CloseResponse GameId
   | StartResponse GameId PlayerId PlayerId
-  | PutPointResponse GameId Coordinate JsonPlayer
+  | PutPointResponse GameId Move
 
 derive instance Generic Response _
 
@@ -114,12 +117,14 @@ instance DecodeJson Response where
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
-      "Init" -> InitResponse <$> obj .: "authProviders" <*> obj .:? "playerId" <*> obj .: "openGames" <*> obj .: "games"
+      "Init" -> InitResponse <$> obj .: "authProviders" <*> obj .:? "playerId" <*> obj .: "players" <*> obj .: "openGames" <*> obj .: "games"
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
+      "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "player"
+      "PlayerLeft" -> PlayerLeftResponse <$> obj .: "playerId"
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "playerId" <*> obj .: "size"
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "redPlayerId" <*> obj .: "blackPlayerId"
-      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "coordinate" <*> obj .: "player"
+      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move"
       other -> Left $ UnexpectedValue $ encodeJson other

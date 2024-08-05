@@ -337,16 +337,25 @@ _field = Proxy
 
 data AppQuery a = AppQuery Message.Response a
 
+type AppInput =
+  { authProviders :: Array Message.AuthProvider
+  , playerId :: Maybe Message.PlayerId
+  , players :: Array Message.Player
+  , openGames :: Array Message.OpenGame
+  , games :: Array Message.Game
+  }
+
 appComponent
   :: forall m
    . MonadAff m
-  => H.Component AppQuery (Array Message.AuthProvider /\ Maybe Message.PlayerId /\ Array Message.OpenGame /\ Array Message.Game) Message.Request m
+  => H.Component AppQuery AppInput Message.Request m
 appComponent =
-  Hooks.component \{ queryToken, outputToken, slotToken } (authProvidersInput /\ playerIdInput /\ openGamesInput /\ gamesInput) -> Hooks.do
-    authProviders /\ authProvidersId <- Hooks.useState authProvidersInput
-    activePlayerId /\ activePlayerIdId <- Hooks.useState playerIdInput
-    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
-    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
+  Hooks.component \{ queryToken, outputToken, slotToken } input -> Hooks.do
+    authProviders /\ authProvidersId <- Hooks.useState input.authProviders
+    activePlayerId /\ activePlayerIdId <- Hooks.useState input.playerId
+    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ input.openGames
+    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) input.games
+    players /\ playersId <- Hooks.useState $ Map.fromFoldable $ map (\{ playerId, nickname } -> Tuple playerId { nickname }) input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
     activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
 
@@ -372,12 +381,13 @@ appComponent =
     Hooks.useQuery queryToken case _ of
       AppQuery response a -> do
         case response of
-          Message.InitResponse authProvidersInput' playerIdInput' openGamesInput' gamesInput' -> do
-            Hooks.put authProvidersId authProvidersInput'
-            Hooks.put activePlayerIdId playerIdInput'
-            let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput'
-            Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput'
+          Message.InitResponse authProvidersInput playerIdInput playersInput openGamesInput gamesInput -> do
+            Hooks.put authProvidersId authProvidersInput
+            Hooks.put activePlayerIdId playerIdInput
+            let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
+            Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
             Hooks.put gamesId games'
+            Hooks.put playersId $ Map.fromFoldable $ map (\{ playerId, nickname } -> Tuple playerId { nickname }) playersInput
             Maybe.maybe (pure unit)
               ( \gameId ->
                   if Map.member gameId games' then
@@ -404,6 +414,10 @@ appComponent =
           Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
             liftEffect $ setCookie cookie
+          Message.PlayerJoinedResponse player ->
+            Hooks.modify_ playersId $ Map.insert player.playerId { nickname: player.nickname }
+          Message.PlayerLeftResponse playerId ->
+            Hooks.modify_ playersId $ Map.delete playerId
           Message.CreateResponse gameId playerId size ->
             Hooks.modify_ openGamesId $ Map.insert gameId { playerId, size }
           Message.CloseResponse gameId ->
@@ -415,14 +429,14 @@ appComponent =
                 Hooks.modify_ openGamesId $ Map.delete gameId
                 Hooks.modify_ gamesId $ Map.insert gameId { redPlayerId, blackPlayerId, size }
                 when (activePlayerId == Maybe.Just redPlayerId || activePlayerId == Maybe.Just blackPlayerId) $ switchToGame gameId
-          Message.PutPointResponse gameId coordinate player ->
+          Message.PutPointResponse gameId move ->
             case activeGame of
               Maybe.Just (activeGameId' /\ fields) | gameId == activeGameId' ->
                 Hooks.put activeGameId
                   $ Maybe.Just
                   $ (/\) activeGameId'
                   $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
-                  $ Field.putPoint (Tuple coordinate.x coordinate.y) (unwrap player)
+                  $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
                   $ NonEmptyList.head fields
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
@@ -583,9 +597,9 @@ main = do
     HA.runHalogenAff do
       body <- HA.awaitBody
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
-        authProviders /\ playerId /\ openGames /\ games <- CR.await >>= case _ of
-          Message.InitResponse authProviders playerId openGames games -> pure $ authProviders /\ playerId /\ openGames /\ games
+        input <- CR.await >>= case _ of
+          Message.InitResponse authProviders playerId players openGames games -> pure $ { authProviders, playerId, players, openGames, games }
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
-        io <- lift $ runUI appComponent (authProviders /\ playerId /\ openGames /\ games) body
+        io <- lift $ runUI appComponent input body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
         CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
