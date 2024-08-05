@@ -61,6 +61,8 @@ toPos canvas field drawSettings x y = do
     posY = toGamePosY y
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
 
+type Input = { fields :: NonEmptyList Field, pointer :: Boolean }
+
 data Output = Click Pos
 
 data Redraw a = Redraw a
@@ -68,7 +70,7 @@ data Redraw a = Redraw a
 fieldComponent
   :: forall m
    . MonadAff m
-  => H.Component Redraw (NonEmptyList Field) Output m
+  => H.Component Redraw Input Output m
 fieldComponent =
   Hooks.component \{ queryToken, outputToken } input -> Hooks.do
     size /\ sizeId <- Hooks.useState Nothing
@@ -93,7 +95,7 @@ fieldComponent =
           (Event.target >=> Window.fromEventTarget >>> map (const setSize))
       pure $ Just $ Hooks.unsubscribe subscriptionId
 
-    Hooks.captures { size, input } Hooks.useTickEffect do
+    Hooks.captures { size, input: input.fields } Hooks.useTickEffect do
       let
         setCanvasSize canvas = for_ size \{ width, height } -> do
           setCanvasWidth canvas width
@@ -103,45 +105,51 @@ fieldComponent =
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2DThatWillReadFrequently canvas
-        draw defaultDrawSettings width height input context
+        draw defaultDrawSettings width height input.fields context
         bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
           setCanvasSize canvasPointer
       pure Nothing
 
-    Hooks.pure $ HH.div
-      [ HCSS.style do
-          CSS.position CSS.relative
-          CSS.width $ CSS.pct 100.0
-          CSS.height $ CSS.pct 100.0
-          CSSOverflow.overflow CSSOverflow.hidden
-      ]
-      [ HH.canvas
-          [ HP.id "canvas"
-          , HCSS.style do
-              CSS.position CSS.absolute
-              CSS.top $ CSS.px 0.0
-              CSS.left $ CSS.px 0.0
+    Hooks.pure
+      $ HH.div
+          [ HCSS.style do
+              CSS.position CSS.relative
+              CSS.width $ CSS.pct 100.0
+              CSS.height $ CSS.pct 100.0
+              CSSOverflow.overflow CSSOverflow.hidden
           ]
-      , HH.canvas $
-          [ HP.id "canvas-pointer"
-          , HCSS.style do
-              CSS.position CSS.absolute
-              CSS.top $ CSS.px 0.0
-              CSS.left $ CSS.px 0.0
-          , HE.onClick \e -> void $ runMaybeT $ do
-              pos <- mapMaybeT liftEffect $ do
-                canvas <- wrap $ getCanvasElementById "canvas-pointer"
-                wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
-              when (Field.isPuttingAllowed (NonEmptyList.head input) pos)
-                $ lift
-                $ Hooks.raise outputToken
-                $ Click pos
-          , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
-              canvas <- wrap $ getCanvasElementById "canvas-pointer"
-              width <- lift $ getCanvasWidth canvas
-              height <- lift $ getCanvasHeight canvas
-              context <- lift $ getContext2D canvas
-              pos <- wrap $ toPos canvas (NonEmptyList.head input) defaultDrawSettings (offsetX e) (offsetY e)
-              lift $ drawPointer defaultDrawSettings width height input pos context
-          ]
-      ]
+      $
+        [ HH.canvas
+            [ HP.id "canvas"
+            , HCSS.style do
+                CSS.position CSS.absolute
+                CSS.top $ CSS.px 0.0
+                CSS.left $ CSS.px 0.0
+            ]
+        ] <>
+          if input.pointer then
+            [ HH.canvas $
+                [ HP.id "canvas-pointer"
+                , HCSS.style do
+                    CSS.position CSS.absolute
+                    CSS.top $ CSS.px 0.0
+                    CSS.left $ CSS.px 0.0
+                , HE.onClick \e -> void $ runMaybeT $ do
+                    pos <- mapMaybeT liftEffect $ do
+                      canvas <- wrap $ getCanvasElementById "canvas-pointer"
+                      wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                    when (Field.isPuttingAllowed (NonEmptyList.head input.fields) pos)
+                      $ lift
+                      $ Hooks.raise outputToken
+                      $ Click pos
+                , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
+                    canvas <- wrap $ getCanvasElementById "canvas-pointer"
+                    width <- lift $ getCanvasWidth canvas
+                    height <- lift $ getCanvasHeight canvas
+                    context <- lift $ getContext2D canvas
+                    pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                    lift $ drawPointer defaultDrawSettings width height input.fields pos context
+                ]
+            ]
+          else
+            []

@@ -625,30 +625,27 @@ appComponent =
                 ]
                 [ case activeGame of
                     Maybe.Just (gameId /\ fields) ->
-                      HH.slot
-                        _field
-                        unit
-                        fieldComponent
-                        fields
-                        \(Click (Tuple x y)) ->
-                          let
-                            game = Map.lookup gameId games
-                            nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
-                          in
-                            when
-                              ( Maybe.isJust activePlayerId &&
-                                  ( map _.redPlayerId game == activePlayerId && nextPlayer == Player.Red ||
-                                      map _.blackPlayerId game == activePlayerId && nextPlayer == Player.Black
-                                  )
-                              )
-                              do
-                                Hooks.put activeGameId
-                                  $ Maybe.Just
-                                  $ (/\) gameId
-                                  $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
-                                  $ Field.putPoint (Tuple x y) nextPlayer
-                                  $ NonEmptyList.head fields
-                                Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
+                      let
+                        game = Map.lookup gameId games
+                        nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
+                        pointer = Maybe.isJust activePlayerId &&
+                          ( map _.redPlayerId game == activePlayerId && nextPlayer == Player.Red ||
+                              map _.blackPlayerId game == activePlayerId && nextPlayer == Player.Black
+                          )
+                      in
+                        HH.slot
+                          _field
+                          unit
+                          fieldComponent
+                          { fields, pointer }
+                          \(Click (Tuple x y)) -> when pointer do
+                            Hooks.put activeGameId
+                              $ Maybe.Just
+                              $ (/\) gameId
+                              $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
+                              $ Field.putPoint (Tuple x y) nextPlayer
+                              $ NonEmptyList.head fields
+                            Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
                     Maybe.Nothing ->
                       HH.slot
                         _createGame
