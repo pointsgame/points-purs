@@ -258,8 +258,9 @@ buttonStyle = do
   CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
   CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
   CSS.cursor CSSCursor.pointer
+  CSS.key (CSS.fromString "white-space") "nowrap"
 
-data SignInOutput = SignIn Message.AuthProvider Boolean | SignInTest String --- | SignOut
+data SignInOutput = SignIn Message.AuthProvider Boolean | SignInTest String
 
 signinComponent
   :: forall query m
@@ -275,16 +276,16 @@ signinComponent =
           maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode document)
           Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
     Hooks.pure $ HH.div
-      [ HP.id "sign-in"
+      [ HP.id "menu"
       , HCSS.style $ CSS.position $ CSS.relative
       ]
       [ HH.button
-          [ HP.id "sign-in-btn"
+          [ HP.id "menu-btn"
           , HCSS.style buttonStyle
           ]
           [ HH.text "Sign in" ]
       , HH.div
-          [ HP.id "sign-in-list"
+          [ HP.id "menu-list"
           , HCSS.style do
               CSS.position CSS.absolute
               CSS.top $ CSS.pct 100.0
@@ -300,7 +301,7 @@ signinComponent =
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                   ]
                   [ HH.button
-                      [ HP.class_ $ wrap "sign-in-provider"
+                      [ HP.class_ $ wrap "menu-item"
                       , HCSS.style buttonStyle
                       , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GoogleAuthProvider)
                       ]
@@ -315,7 +316,7 @@ signinComponent =
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                   ]
                   [ HH.button
-                      [ HP.class_ $ wrap "sign-in-provider"
+                      [ HP.class_ $ wrap "menu-item"
                       , HCSS.style buttonStyle
                       , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.GitLabAuthProvider)
                       ]
@@ -364,6 +365,46 @@ signinComponent =
                     [ HH.text "Remember me" ]
                 ]
             ]
+          ]
+      ]
+
+_menu :: Proxy "menu"
+_menu = Proxy
+
+data MenuOutput = SignOut
+
+menuComponent
+  :: forall query m
+   . MonadAff m
+  => H.Component query Player MenuOutput m
+menuComponent =
+  Hooks.component \{ outputToken } player -> Hooks.do
+    Hooks.pure $ HH.div
+      [ HP.id "menu"
+      , HCSS.style $ CSS.position $ CSS.relative
+      ]
+      [ HH.button
+          [ HP.id "menu-btn", HCSS.style buttonStyle ]
+          [ HH.text player.nickname ]
+      , HH.div
+          [ HP.id "menu-list"
+          , HCSS.style do
+              CSS.position CSS.absolute
+              CSS.top $ CSS.pct 100.0
+              CSS.right $ CSS.px 0.0
+              traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
+              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+              CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
+              CSS.zIndex 1
+          ]
+          [ HH.div_
+              [ HH.button
+                  [ HP.class_ $ wrap "menu-item"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken SignOut
+                  ]
+                  [ HH.text "Sign out" ]
+              ]
           ]
       ]
 
@@ -520,15 +561,29 @@ appComponent =
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
-                [ HH.slot
-                    _signin
-                    unit
-                    signinComponent
-                    authProviders
-                    case _ of
-                      SignIn provider rememberMe -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider rememberMe
-                      SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
-                ]
+                case activePlayerId >>= \playerId -> Map.lookup playerId players of
+                  Maybe.Nothing ->
+                    [ HH.slot
+                        _signin
+                        unit
+                        signinComponent
+                        authProviders
+                        case _ of
+                          SignIn provider rememberMe -> Hooks.raise outputToken $ Message.GetAuthUrlRequest provider rememberMe
+                          SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
+                    ]
+                  Maybe.Just player ->
+                    [ HH.slot
+                        _menu
+                        unit
+                        menuComponent
+                        player
+                        case _ of
+                          SignOut -> do
+                            Hooks.raise outputToken Message.SignOutRequest
+                            Hooks.put activePlayerIdId Maybe.Nothing
+                            liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
+                    ]
             ]
         , HH.div
             [ HCSS.style do

@@ -68,6 +68,7 @@ data Request
   = GetAuthUrlRequest AuthProvider Boolean
   | AuthRequest String String
   | AuthTestRequest String
+  | SignOutRequest
   | CreateRequest FieldSize
   | CloseRequest GameId
   | JoinRequest GameId
@@ -86,6 +87,7 @@ instance EncodeJson Request where
   encodeJson (GetAuthUrlRequest provider rememberMe) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> "rememberMe" := rememberMe ~> jsonEmptyObject
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
   encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
+  encodeJson SignOutRequest = "command" := "SignOut" ~> jsonEmptyObject
   encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
   encodeJson (CloseRequest gameId) = "command" := "Close" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
