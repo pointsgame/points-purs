@@ -122,9 +122,9 @@ _games = Proxy
 gamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId Game) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId Game /\ Map Message.PlayerId Player) Message.GameId m
 gamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ games /\ players) -> Hooks.do
     Hooks.pure $ HH.div_
       $
         [ HH.div
@@ -139,7 +139,7 @@ gamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { size }) -> HH.div
+              ( \(Tuple gameId { redPlayerId, blackPlayerId, size }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -147,7 +147,13 @@ gamesComponent =
                       CSS.cursor CSSCursor.pointer
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ show size.width <> "x" <> show size.height ]
+                  let
+                    redPlayer = Map.lookup redPlayerId players
+                    blackPlayer = Map.lookup blackPlayerId players
+                    redNickname = Maybe.maybe "" (_.nickname) redPlayer
+                    blackNickname = Maybe.maybe "" (_.nickname) blackPlayer
+                  in
+                    [ HH.text $ redNickname <> " vs " <> blackNickname <> ", " <> show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered games
           )
@@ -158,9 +164,9 @@ _openGames = Proxy
 openGamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame /\ Map Message.PlayerId Player) Message.GameId m
 openGamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ openGames /\ players) -> Hooks.do
     Hooks.pure $ HH.div_
       $
         [ HH.div
@@ -175,7 +181,7 @@ openGamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { size }) -> HH.div
+              ( \(Tuple gameId { playerId, size }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -184,7 +190,11 @@ openGamesComponent =
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ show size.width <> "x" <> show size.height ]
+                  let
+                    player = Map.lookup playerId players
+                    nickname = Maybe.maybe "" (_.nickname) player
+                  in
+                    [ HH.text $ nickname <> ", " <> show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered openGames
           )
@@ -603,13 +613,13 @@ appComponent =
                     _games
                     unit
                     gamesComponent
-                    (activePlayerId /\ games)
+                    (activePlayerId /\ games /\ players)
                     \gameId -> when (Maybe.Just gameId /= watchingGameId) $ switchToGame gameId
                 , HH.slot
                     _openGames
                     unit
                     openGamesComponent
-                    (activePlayerId /\ openGames)
+                    (activePlayerId /\ openGames /\ players)
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
                 , HH.slot_
                     _players
