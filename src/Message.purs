@@ -43,7 +43,7 @@ type Game = { gameId :: GameId, redPlayerId :: PlayerId, blackPlayerId :: Player
 
 type Player = { playerId :: PlayerId, nickname :: String }
 
-data AuthProvider = GoogleAuthProvider | GitLabAuthProvider | TestAuthProvider
+data AuthProvider = PortierAuthProvider | GoogleAuthProvider | GitLabAuthProvider | TestAuthProvider
 
 derive instance Generic AuthProvider _
 
@@ -51,12 +51,14 @@ derive instance Eq AuthProvider
 
 instance DecodeJson AuthProvider where
   decodeJson json = decodeJson json >>= case _ of
+    "Portier" -> Right PortierAuthProvider
     "Google" -> Right GoogleAuthProvider
     "GitLab" -> Right GitLabAuthProvider
     "Test" -> Right TestAuthProvider
     other -> Left $ UnexpectedValue $ encodeJson other
 
 instance EncodeJson AuthProvider where
+  encodeJson PortierAuthProvider = encodeJson "Portier"
   encodeJson GoogleAuthProvider = encodeJson "Google"
   encodeJson GitLabAuthProvider = encodeJson "GitLab"
   encodeJson TestAuthProvider = encodeJson "Test"

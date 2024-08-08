@@ -305,7 +305,22 @@ signinComponent =
               CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
               CSS.zIndex 1
           ] $ Array.concat
-          [ if Array.elem Message.GoogleAuthProvider authProviders then
+          [ if Array.elem Message.PortierAuthProvider authProviders then
+              [ HH.div
+                  [ HCSS.style do
+                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                  ]
+                  [ HH.button
+                      [ HP.class_ $ wrap "menu-item"
+                      , HCSS.style buttonStyle
+                      , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn Message.PortierAuthProvider)
+                      ]
+                      [ HH.text "Email" ]
+                  ]
+              ]
+            else
+              []
+          , if Array.elem Message.GoogleAuthProvider authProviders then
               [ HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
