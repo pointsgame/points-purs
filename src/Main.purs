@@ -19,7 +19,6 @@ import Data.Array as Array
 import Data.Either as Either
 import Data.Foldable (for_, traverse_)
 import Data.List.NonEmpty as NonEmptyList
-import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
@@ -112,19 +111,15 @@ wsProducer socketRef socketEffect = CRA.produce \emitter ->
 wsSender :: Ref WS.WebSocket -> Message.Request -> Effect Unit
 wsSender socket message = Ref.read socket >>= \s -> WS.sendString s $ stringify $ encodeJson message
 
-type Game = { redPlayerId :: Message.PlayerId, blackPlayerId :: Message.PlayerId, size :: Message.FieldSize }
-type OpenGame = { playerId :: Message.PlayerId, size :: Message.FieldSize }
-type Player = { nickname :: String }
-
 _games :: Proxy "games"
 _games = Proxy
 
 gamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId Game /\ Map Message.PlayerId Player) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Message.Games) Message.GameId m
 gamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ games /\ players) -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
     Hooks.pure $ HH.div_
       $
         [ HH.div
@@ -139,7 +134,7 @@ gamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { redPlayerId, blackPlayerId, size }) -> HH.div
+              ( \(Tuple gameId { redPlayer, blackPlayer, size }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -147,13 +142,7 @@ gamesComponent =
                       CSS.cursor CSSCursor.pointer
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
-                  let
-                    redPlayer = Map.lookup redPlayerId players
-                    blackPlayer = Map.lookup blackPlayerId players
-                    redNickname = Maybe.maybe "" (_.nickname) redPlayer
-                    blackNickname = Maybe.maybe "" (_.nickname) blackPlayer
-                  in
-                    [ HH.text $ redNickname <> " vs " <> blackNickname <> ", " <> show size.width <> "x" <> show size.height ]
+                  [ HH.text $ redPlayer.nickname <> " vs " <> blackPlayer.nickname <> ", " <> show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered games
           )
@@ -164,9 +153,9 @@ _openGames = Proxy
 openGamesComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame /\ Map Message.PlayerId Player) Message.GameId m
+  => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) Message.GameId m
 openGamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ openGames /\ players) -> Hooks.do
+  Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $ HH.div_
       $
         [ HH.div
@@ -181,7 +170,7 @@ openGamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { playerId, size }) -> HH.div
+              ( \(Tuple gameId { player, size }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -190,11 +179,7 @@ openGamesComponent =
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
-                  let
-                    player = Map.lookup playerId players
-                    nickname = Maybe.maybe "" (_.nickname) player
-                  in
-                    [ HH.text $ nickname <> ", " <> show size.width <> "x" <> show size.height ]
+                  [ HH.text $ player.nickname <> ", " <> show size.width <> "x" <> show size.height ]
               )
               $ Map.toUnfoldableUnordered openGames
           )
@@ -205,7 +190,7 @@ _players = Proxy
 playersComponent
   :: forall query output m
    . MonadAff m
-  => H.Component query (Map Message.PlayerId Player) output m
+  => H.Component query Message.Players output m
 playersComponent =
   Hooks.component \_ players -> Hooks.do
     Hooks.pure $ HH.div_
@@ -241,7 +226,7 @@ data CreateGameOutput = CreateGame Int Int | CloseGame Message.GameId
 createGameComponent
   :: forall query m
    . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Map Message.GameId OpenGame) CreateGameOutput m
+  => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) CreateGameOutput m
 createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $
@@ -401,7 +386,7 @@ data MenuOutput = SignOut
 menuComponent
   :: forall query m
    . MonadAff m
-  => H.Component query Player MenuOutput m
+  => H.Component query Message.Player MenuOutput m
 menuComponent =
   Hooks.component \{ outputToken } player -> Hooks.do
     Hooks.pure $ HH.div
@@ -441,9 +426,9 @@ data AppQuery a = AppQuery Message.Response a
 type AppInput =
   { authProviders :: Array Message.AuthProvider
   , playerId :: Maybe Message.PlayerId
-  , players :: Array Message.Player
-  , openGames :: Array Message.OpenGame
-  , games :: Array Message.Game
+  , players :: Message.Players
+  , openGames :: Message.OpenGames
+  , games :: Message.Games
   }
 
 appComponent
@@ -454,9 +439,9 @@ appComponent =
   Hooks.component \{ queryToken, outputToken, slotToken } input -> Hooks.do
     authProviders /\ authProvidersId <- Hooks.useState input.authProviders
     activePlayerId /\ activePlayerIdId <- Hooks.useState input.playerId
-    openGames /\ openGamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ input.openGames
-    games /\ gamesId <- Hooks.useState $ Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) input.games
-    players /\ playersId <- Hooks.useState $ Map.fromFoldable $ map (\{ playerId, nickname } -> Tuple playerId { nickname }) input.players
+    openGames /\ openGamesId <- Hooks.useState input.openGames
+    games /\ gamesId <- Hooks.useState input.games
+    players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
     activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
 
@@ -485,13 +470,12 @@ appComponent =
           Message.InitResponse authProvidersInput playerIdInput playersInput openGamesInput gamesInput -> do
             Hooks.put authProvidersId authProvidersInput
             Hooks.put activePlayerIdId playerIdInput
-            let games' = Map.fromFoldable $ map (\{ gameId, redPlayerId, blackPlayerId, size } -> Tuple gameId { redPlayerId, blackPlayerId, size }) gamesInput
-            Hooks.put openGamesId $ Map.fromFoldable $ map (\{ gameId, playerId, size } -> Tuple gameId { playerId, size }) $ openGamesInput
-            Hooks.put gamesId games'
-            Hooks.put playersId $ Map.fromFoldable $ map (\{ playerId, nickname } -> Tuple playerId { nickname }) playersInput
+            Hooks.put openGamesId openGamesInput
+            Hooks.put gamesId gamesInput
+            Hooks.put playersId playersInput
             Maybe.maybe (pure unit)
               ( \gameId ->
-                  if Map.member gameId games' then
+                  if Map.member gameId gamesInput then
                     Hooks.raise outputToken $ Message.SubscribeRequest gameId
                   else
                     -- Should we switch here if games are persisted?
@@ -515,21 +499,18 @@ appComponent =
           Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
             liftEffect $ setCookie cookie
-          Message.PlayerJoinedResponse player ->
-            Hooks.modify_ playersId $ Map.insert player.playerId { nickname: player.nickname }
+          Message.PlayerJoinedResponse playerId player ->
+            Hooks.modify_ playersId $ Map.insert playerId player
           Message.PlayerLeftResponse playerId ->
             Hooks.modify_ playersId $ Map.delete playerId
-          Message.CreateResponse gameId playerId size ->
-            Hooks.modify_ openGamesId $ Map.insert gameId { playerId, size }
+          Message.CreateResponse gameId openGame ->
+            Hooks.modify_ openGamesId $ Map.insert gameId openGame
           Message.CloseResponse gameId ->
             Hooks.modify_ openGamesId $ Map.delete gameId
-          Message.StartResponse gameId redPlayerId blackPlayerId -> do
-            case Map.lookup gameId openGames of
-              Maybe.Nothing -> liftEffect $ Console.warn $ "No open game with id " <> gameId
-              Maybe.Just { size } -> do
-                Hooks.modify_ openGamesId $ Map.delete gameId
-                Hooks.modify_ gamesId $ Map.insert gameId { redPlayerId, blackPlayerId, size }
-                when (activePlayerId == Maybe.Just redPlayerId || activePlayerId == Maybe.Just blackPlayerId) $ switchToGame gameId
+          Message.StartResponse gameId game -> do
+            Hooks.modify_ openGamesId $ Map.delete gameId
+            Hooks.modify_ gamesId $ Map.insert gameId game
+            when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
           Message.PutPointResponse gameId move ->
             case activeGame of
               Maybe.Just (activeGameId' /\ fields) | gameId == activeGameId' ->
@@ -628,13 +609,13 @@ appComponent =
                     _games
                     unit
                     gamesComponent
-                    (activePlayerId /\ games /\ players)
+                    (activePlayerId /\ games)
                     \gameId -> when (Maybe.Just gameId /= watchingGameId) $ switchToGame gameId
                 , HH.slot
                     _openGames
                     unit
                     openGamesComponent
-                    (activePlayerId /\ openGames /\ players)
+                    (activePlayerId /\ openGames)
                     \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
                 , HH.slot_
                     _players
