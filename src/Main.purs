@@ -238,23 +238,34 @@ createGameComponent
   => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) CreateGameOutput m
 createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
-    Hooks.pure $
-      if Maybe.isJust activePlayerId then
-        case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
-          Maybe.Nothing ->
-            HH.button
-              [ HCSS.style buttonStyle
-              , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32
-              ]
-              [ HH.text "Create game" ]
-          Maybe.Just (Tuple gameId _) ->
-            HH.button
-              [ HCSS.style buttonStyle
-              , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
-              ]
-              [ HH.text "Cancel game" ]
-      else
-        HH.text "Sign in to play!"
+    Hooks.pure $ HH.div
+      [ HCSS.style do
+          CSS.position CSS.absolute
+          CSS.top $ CSS.pct 50.0
+          CSS.left $ CSS.pct 50.0
+      ]
+      [ if Maybe.isJust activePlayerId then
+          case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
+            Maybe.Nothing ->
+              HH.button
+                [ HCSS.style buttonStyle
+                , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32
+                ]
+                [ HH.text "Create game" ]
+            Maybe.Just (Tuple gameId _) ->
+              HH.button
+                [ HCSS.style buttonStyle
+                , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
+                ]
+                [ HH.text "Cancel game" ]
+        else
+          HH.label
+            [ HCSS.style do
+                CSS.fontSize (CSS.rem 2.0)
+                traverse_ CSS.color $ CSS.fromHexString "#333"
+            ]
+            [ HH.text "Sign in to play!" ]
+      ]
 
 _signin :: Proxy "signin"
 _signin = Proxy
