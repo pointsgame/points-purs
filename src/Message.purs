@@ -2,14 +2,31 @@ module Message where
 
 import Prelude
 
-import Data.Argonaut (class DecodeJson, class EncodeJson, JsonDecodeError(..), decodeJson, encodeJson, jsonEmptyObject, (.:), (.:?), (:=), (~>))
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, JsonDecodeError(..), caseJsonObject, decodeJson, encodeJson, jsonEmptyObject, (.:), (.:?), (:=), (~>))
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, wrap)
 import Data.Show.Generic (genericShow)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple)
+import Foreign.Object as Object
 import Player as Player
+
+newtype StringMap a = StringMap (Map String a)
+
+instance DecodeJson a => DecodeJson (StringMap a) where
+  decodeJson json =
+    caseJsonObject (Left $ UnexpectedValue json)
+      ( \obj ->
+          map StringMap $ traverse decodeJson (Map.fromFoldable (Object.toUnfoldable obj :: Array (Tuple String Json)))
+      )
+      json
+
+unwrapStringMap :: forall a. StringMap a -> Map String a
+unwrapStringMap (StringMap map) = map
 
 newtype Color = Color Player.Player
 
@@ -126,7 +143,12 @@ instance DecodeJson Response where
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
-      "Init" -> InitResponse <$> obj .: "authProviders" <*> obj .:? "playerId" <*> obj .: "players" <*> obj .: "openGames" <*> obj .: "games"
+      "Init" -> InitResponse
+        <$> obj .: "authProviders"
+        <*> obj .:? "playerId"
+        <*> (map unwrapStringMap $ obj .: "players")
+        <*> (map unwrapStringMap $ obj .: "openGames")
+        <*> (map unwrapStringMap $ obj .: "games")
       "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
