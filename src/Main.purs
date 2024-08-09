@@ -218,6 +218,15 @@ playersComponent =
               $ Map.toUnfoldableUnordered players
           )
 
+buttonStyle :: CSS.CSS
+buttonStyle = do
+  traverse_ CSS.color $ CSS.fromHexString "#333"
+  CSS.key (CSS.fromString "border") "none"
+  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+  CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+  CSS.cursor CSSCursor.pointer
+  CSS.key (CSS.fromString "white-space") "nowrap"
+
 _createGame :: Proxy "createGame"
 _createGame = Proxy
 
@@ -234,26 +243,21 @@ createGameComponent =
         case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
           Maybe.Nothing ->
             HH.button
-              [ HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32 ]
+              [ HCSS.style buttonStyle
+              , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32
+              ]
               [ HH.text "Create game" ]
           Maybe.Just (Tuple gameId _) ->
             HH.button
-              [ HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId ]
+              [ HCSS.style buttonStyle
+              , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
+              ]
               [ HH.text "Cancel game" ]
       else
         HH.text "Sign in to play!"
 
 _signin :: Proxy "signin"
 _signin = Proxy
-
-buttonStyle :: CSS.CSS
-buttonStyle = do
-  traverse_ CSS.color $ CSS.fromHexString "#333"
-  CSS.key (CSS.fromString "border") "none"
-  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-  CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
-  CSS.cursor CSSCursor.pointer
-  CSS.key (CSS.fromString "white-space") "nowrap"
 
 data SignInOutput = SignIn Message.AuthProvider Boolean | SignInTest String
 
