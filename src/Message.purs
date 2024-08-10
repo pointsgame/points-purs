@@ -51,15 +51,19 @@ type PlayerId = String
 
 type FieldSize = { width :: Int, height :: Int }
 
+type GameTime = { total :: Int, increment :: Int }
+
+type GameConfig = { size :: FieldSize, time :: GameTime }
+
 type Coordinate = { x :: Int, y :: Int }
 
 type Move = { coordinate :: Coordinate, player :: Color }
 
 type Player = { nickname :: String }
 
-type OpenGame = { playerId :: PlayerId, player :: Player, size :: FieldSize }
+type OpenGame = { playerId :: PlayerId, player :: Player, config :: GameConfig }
 
-type Game = { redPlayerId :: PlayerId, blackPlayerId :: PlayerId, redPlayer :: Player, blackPlayer :: Player, size :: FieldSize }
+type Game = { redPlayerId :: PlayerId, blackPlayerId :: PlayerId, redPlayer :: Player, blackPlayer :: Player, config :: GameConfig }
 
 type Players = Map PlayerId Player
 type OpenGames = Map GameId OpenGame
@@ -93,7 +97,7 @@ data Request
   | AuthRequest String String
   | AuthTestRequest String
   | SignOutRequest
-  | CreateRequest FieldSize
+  | CreateRequest GameConfig
   | CloseRequest GameId
   | JoinRequest GameId
   | SubscribeRequest GameId
@@ -112,7 +116,7 @@ instance EncodeJson Request where
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
   encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
   encodeJson SignOutRequest = "command" := "SignOut" ~> jsonEmptyObject
-  encodeJson (CreateRequest size) = "command" := "Create" ~> "size" := size ~> jsonEmptyObject
+  encodeJson (CreateRequest config) = "command" := "Create" ~> "config" := config ~> jsonEmptyObject
   encodeJson (CloseRequest gameId) = "command" := "Close" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (JoinRequest gameId) = "command" := "Join" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId ~> jsonEmptyObject

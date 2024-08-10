@@ -134,7 +134,7 @@ gamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { redPlayer, blackPlayer, size }) -> HH.div
+              ( \(Tuple gameId { redPlayer, blackPlayer, config }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -142,7 +142,7 @@ gamesComponent =
                       CSS.cursor CSSCursor.pointer
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ redPlayer.nickname <> " vs " <> blackPlayer.nickname <> ", " <> show size.width <> "x" <> show size.height ]
+                  [ HH.text $ redPlayer.nickname <> " vs " <> blackPlayer.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
               )
               $ Map.toUnfoldableUnordered games
           )
@@ -170,7 +170,7 @@ openGamesComponent =
             ]
         ] <>
           ( map
-              ( \(Tuple gameId { player, size }) -> HH.div
+              ( \(Tuple gameId { player, config }) -> HH.div
                   [ HCSS.style do
                       traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                       traverse_ CSS.color $ CSS.fromHexString "#333"
@@ -179,7 +179,7 @@ openGamesComponent =
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ player.nickname <> ", " <> show size.width <> "x" <> show size.height ]
+                  [ HH.text $ player.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
               )
               $ Map.toUnfoldableUnordered openGames
           )
@@ -230,7 +230,7 @@ buttonStyle = do
 _createGame :: Proxy "createGame"
 _createGame = Proxy
 
-data CreateGameOutput = CreateGame Int Int | CloseGame Message.GameId
+data CreateGameOutput = CreateGame Message.GameConfig | CloseGame Message.GameId
 
 createGameComponent
   :: forall query m
@@ -249,7 +249,7 @@ createGameComponent =
             Maybe.Nothing ->
               HH.button
                 [ HCSS.style buttonStyle
-                , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame 39 32
+                , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame { size: { width: 39, height: 32 }, time: { total: 300, increment: 5 } }
                 ]
                 [ HH.text "Create game" ]
             Maybe.Just (Tuple gameId _) ->
@@ -674,7 +674,7 @@ appComponent =
                         createGameComponent
                         (activePlayerId /\ openGames)
                         case _ of
-                          CreateGame width height -> Hooks.raise outputToken $ Message.CreateRequest { width, height }
+                          CreateGame config -> Hooks.raise outputToken $ Message.CreateRequest config
                           CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
                 ]
             ]
