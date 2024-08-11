@@ -25,6 +25,8 @@ package:
     - halogen-css
     - web-url
     - js-timers
+    - js-date
+    - datetime
 workspace:
   backend:
     cmd: "purs-backend-es"

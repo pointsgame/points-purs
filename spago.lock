@@ -75,6 +75,7 @@ workspace:
         - canvas
         - console
         - coroutines
+        - datetime
         - effect
         - exceptions
         - field
@@ -82,6 +83,7 @@ workspace:
         - halogen-css
         - halogen-hooks
         - integers
+        - js-date
         - js-timers
         - lists
         - ordered-collections

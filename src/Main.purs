@@ -142,7 +142,7 @@ gamesComponent =
                       CSS.cursor CSSCursor.pointer
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ redPlayer.nickname <> " vs " <> blackPlayer.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
+                  [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
               )
               $ Map.toUnfoldableUnordered games
           )
@@ -240,31 +240,39 @@ createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     Hooks.pure $ HH.div
       [ HCSS.style do
-          CSS.position CSS.absolute
-          CSS.top $ CSS.pct 50.0
-          CSS.left $ CSS.pct 50.0
+          CSS.width $ CSS.pct 100.0
+          CSS.height $ CSS.pct 100.0
+          CSS.position CSS.relative
       ]
-      [ if Maybe.isJust activePlayerId then
-          case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
-            Maybe.Nothing ->
-              HH.button
-                [ HCSS.style buttonStyle
-                , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame { size: { width: 39, height: 32 }, time: { total: 300, increment: 5 } }
+      [ HH.div
+          [ HCSS.style do
+              CSS.position CSS.absolute
+              CSS.top $ CSS.pct 50.0
+              CSS.left $ CSS.pct 50.0
+              CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
+          ]
+          [ if Maybe.isJust activePlayerId then
+              case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
+                Maybe.Nothing ->
+                  HH.button
+                    [ HCSS.style buttonStyle
+                    , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame { size: { width: 39, height: 32 }, time: { total: 300, increment: 5 } }
+                    ]
+                    [ HH.text "Create game" ]
+                Maybe.Just (Tuple gameId _) ->
+                  HH.button
+                    [ HCSS.style buttonStyle
+                    , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
+                    ]
+                    [ HH.text "Cancel game" ]
+            else
+              HH.label
+                [ HCSS.style do
+                    CSS.fontSize (CSS.rem 2.0)
+                    traverse_ CSS.color $ CSS.fromHexString "#333"
                 ]
-                [ HH.text "Create game" ]
-            Maybe.Just (Tuple gameId _) ->
-              HH.button
-                [ HCSS.style buttonStyle
-                , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
-                ]
-                [ HH.text "Cancel game" ]
-        else
-          HH.label
-            [ HCSS.style do
-                CSS.fontSize (CSS.rem 2.0)
-                traverse_ CSS.color $ CSS.fromHexString "#333"
-            ]
-            [ HH.text "Sign in to play!" ]
+                [ HH.text "Sign in to play!" ]
+          ]
       ]
 
 _signin :: Proxy "signin"
@@ -497,9 +505,9 @@ appComponent =
                     Hooks.put watchingGameIdId Maybe.Nothing
               )
               watchingGameId
-          Message.GameInitResponse gameId moves ->
+          Message.GameInitResponse gameId moves redPlayer blackPlayer _ _ ->
             if Maybe.Just gameId == watchingGameId then
-              Hooks.put activeGameId $ Maybe.Just $ gameId /\ Array.foldl
+              Hooks.put activeGameId $ Maybe.Just $ gameId /\ redPlayer /\ blackPlayer /\ Array.foldl
                 ( \fields move ->
                     Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
                 )
@@ -526,12 +534,14 @@ appComponent =
             Hooks.modify_ openGamesId $ Map.delete gameId
             Hooks.modify_ gamesId $ Map.insert gameId game
             when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
-          Message.PutPointResponse gameId move ->
+          Message.PutPointResponse gameId move _ _ ->
             case activeGame of
-              Maybe.Just (activeGameId' /\ fields) | gameId == activeGameId' ->
+              Maybe.Just (activeGameId' /\ redPlayer /\ blackPlayer /\ fields) | gameId == activeGameId' ->
                 Hooks.put activeGameId
                   $ Maybe.Just
                   $ (/\) activeGameId'
+                  $ (/\) redPlayer
+                  $ (/\) blackPlayer
                   $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                   $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
                   $ NonEmptyList.head fields
@@ -550,6 +560,7 @@ appComponent =
       $
         [ HH.div
             [ HCSS.style do
+                CSS.position CSS.relative
                 CSS.display CSS.flex
                 CSS.justifyContent CSS.spaceBetween
                 CSS.alignItems CSSCommon.center
@@ -579,6 +590,16 @@ appComponent =
                     [ HH.text "Kropki"
                     ]
                 ]
+            , HH.div
+                [ HCSS.style do
+                    CSS.position CSS.absolute
+                    CSS.top (CSS.pct 50.0)
+                    CSS.left (CSS.pct 50.0)
+                    CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
+                    traverse_ CSS.color $ CSS.fromHexString "#333"
+                ] $ case activeGame of
+                Maybe.Just (_ /\ redPlayer /\ blackPlayer /\ _) -> [ HH.label_ [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname ] ]
+                Maybe.Nothing -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
@@ -645,7 +666,7 @@ appComponent =
                     CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]
                 [ case activeGame of
-                    Maybe.Just (gameId /\ fields) ->
+                    Maybe.Just (gameId /\ redPlayer /\ blackPlayer /\ fields) ->
                       let
                         game = Map.lookup gameId games
                         nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
@@ -663,6 +684,8 @@ appComponent =
                             Hooks.put activeGameId
                               $ Maybe.Just
                               $ (/\) gameId
+                              $ (/\) redPlayer
+                              $ (/\) blackPlayer
                               $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                               $ Field.putPoint (Tuple x y) nextPlayer
                               $ NonEmptyList.head fields
