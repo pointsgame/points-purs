@@ -126,30 +126,27 @@ fieldComponent =
                 CSS.top $ CSS.px 0.0
                 CSS.left $ CSS.px 0.0
             ]
-        ] <>
-          if input.pointer then
-            [ HH.canvas $
-                [ HP.id "canvas-pointer"
-                , HCSS.style do
-                    CSS.position CSS.absolute
-                    CSS.top $ CSS.px 0.0
-                    CSS.left $ CSS.px 0.0
-                , HE.onClick \e -> void $ runMaybeT $ do
-                    pos <- mapMaybeT liftEffect $ do
-                      canvas <- wrap $ getCanvasElementById "canvas-pointer"
-                      wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
-                    when (Field.isPuttingAllowed (NonEmptyList.head input.fields) pos)
-                      $ lift
-                      $ Hooks.raise outputToken
-                      $ Click pos
-                , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
-                    canvas <- wrap $ getCanvasElementById "canvas-pointer"
-                    width <- lift $ getCanvasWidth canvas
-                    height <- lift $ getCanvasHeight canvas
-                    context <- lift $ getContext2D canvas
-                    pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
-                    lift $ drawPointer defaultDrawSettings width height input.fields pos context
-                ]
+        , HH.canvas $
+            [ HP.id "canvas-pointer"
+            , HCSS.style do
+                unless input.pointer $ CSS.display CSS.displayNone
+                CSS.position CSS.absolute
+                CSS.top $ CSS.px 0.0
+                CSS.left $ CSS.px 0.0
+            , HE.onClick \e -> void $ runMaybeT $ do
+                pos <- mapMaybeT liftEffect $ do
+                  canvas <- wrap $ getCanvasElementById "canvas-pointer"
+                  wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                when (Field.isPuttingAllowed (NonEmptyList.head input.fields) pos)
+                  $ lift
+                  $ Hooks.raise outputToken
+                  $ Click pos
+            , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
+                canvas <- wrap $ getCanvasElementById "canvas-pointer"
+                width <- lift $ getCanvasWidth canvas
+                height <- lift $ getCanvasHeight canvas
+                context <- lift $ getContext2D canvas
+                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                lift $ drawPointer defaultDrawSettings width height input.fields pos context
             ]
-          else
-            []
+        ]
