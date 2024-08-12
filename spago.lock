@@ -83,7 +83,6 @@ workspace:
         - halogen-css
         - halogen-hooks
         - integers
-        - js-timers
         - lists
         - now
         - ordered-collections
@@ -146,7 +145,6 @@ workspace:
         - invariant
         - js-date
         - js-promise
-        - js-timers
         - lazy
         - lcg
         - lists
@@ -1286,12 +1284,6 @@ packages:
       - functions
       - maybe
       - prelude
-  js-timers:
-    type: registry
-    version: 6.1.0
-    integrity: sha256-znHWLSSOYw15P5DTcsAdal2lf7nGA2yayLdOZ2t5r7o=
-    dependencies:
-      - effect
   lazy:
     type: registry
     version: 6.0.0

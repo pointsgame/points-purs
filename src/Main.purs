@@ -28,13 +28,13 @@ import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effect.Timer as Timer
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
 import Foreign (readString)
@@ -89,10 +89,12 @@ wsProducer socketRef socketEffect = CRA.produce \emitter ->
             emit emitter response
       closeListener <- EET.eventListener $ const do
         Console.warn "WebSocket is disconnected"
-        void $ Timer.setTimeout 1000 $ do
-          newSocket <- socketEffect
-          Ref.write newSocket socketRef
-          addListeners
+        Aff.launchAff_ do
+          Aff.delay (Milliseconds 1000.0)
+          liftEffect do
+            newSocket <- socketEffect
+            Ref.write newSocket socketRef
+            addListeners
       socket <- Ref.read socketRef
       let eventTarget = WS.toEventTarget socket
       EET.addEventListener

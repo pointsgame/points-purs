@@ -24,7 +24,6 @@ package:
     - halogen-hooks
     - halogen-css
     - web-url
-    - js-timers
     - datetime
     - now
 workspace:
