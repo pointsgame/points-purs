@@ -3,17 +3,27 @@ module Message where
 import Prelude
 
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, JsonDecodeError(..), caseJsonObject, decodeJson, encodeJson, jsonEmptyObject, (.:), (.:?), (:=), (~>))
+import Data.DateTime.Instant (Instant)
+import Data.DateTime.Instant as Instant
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype, wrap)
+import Data.Maybe as Maybe
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple)
 import Foreign.Object as Object
 import Player as Player
+
+newtype JsonInstant = JsonInstant Instant
+
+derive instance Newtype JsonInstant _
+
+instance DecodeJson JsonInstant where
+  decodeJson json = decodeJson json >>= (map wrap <<< Maybe.maybe (Left $ UnexpectedValue json) pure <<< Instant.instant <<< wrap)
 
 newtype StringMap a = StringMap (Map String a)
 
@@ -127,7 +137,7 @@ instance EncodeJson Request where
 
 data Response
   = InitResponse (Array AuthProvider) (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
-  | GameInitResponse GameId (Array Move) Player Player String TimeLeft
+  | GameInitResponse GameId (Array Move) Player Player Instant TimeLeft
   | AuthUrlResponse String
   | AuthResponse PlayerId String
   | PlayerJoinedResponse PlayerId Player
@@ -135,7 +145,7 @@ data Response
   | CreateResponse GameId OpenGame
   | CloseResponse GameId
   | StartResponse GameId Game
-  | PutPointResponse GameId Move String TimeLeft
+  | PutPointResponse GameId Move Instant TimeLeft
 
 derive instance Generic Response _
 
@@ -146,6 +156,9 @@ instance Show Response where
 
 instance DecodeJson Response where
   decodeJson json = do
+    let
+      un :: JsonInstant -> Instant
+      un = unwrap
     obj <- decodeJson json
     command <- obj .: "command"
     case command of
@@ -155,7 +168,7 @@ instance DecodeJson Response where
         <*> (map unwrapStringMap $ obj .: "players")
         <*> (map unwrapStringMap $ obj .: "openGames")
         <*> (map unwrapStringMap $ obj .: "games")
-      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves" <*> obj .: "redPlayer" <*> obj .: "blackPlayer" <*> obj .: "initTime" <*> obj .: "timeLeft"
+      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves" <*> obj .: "redPlayer" <*> obj .: "blackPlayer" <*> (map un $ obj .: "initTime") <*> obj .: "timeLeft"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "playerId" <*> obj .: "player"
@@ -163,5 +176,5 @@ instance DecodeJson Response where
       "Create" -> CreateResponse <$> obj .: "gameId" <*> obj .: "openGame"
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "game"
-      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> obj .: "puttingTime" <*> obj .: "timeLeft"
+      "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
       other -> Left $ UnexpectedValue $ encodeJson other

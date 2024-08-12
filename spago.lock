@@ -83,9 +83,9 @@ workspace:
         - halogen-css
         - halogen-hooks
         - integers
-        - js-date
         - js-timers
         - lists
+        - now
         - ordered-collections
         - prelude
         - refs
