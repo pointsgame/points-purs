@@ -464,7 +464,7 @@ countdown active now startTime duration =
     minsLeft = secsLeft / 60
     secsRest = secsLeft `mod` 60
     millisRest = millisLeft `mod` 1000
-    delay = Int.toNumber $ (secsRest - 61) * 1000 + millisRest
+    delay = Int.toNumber $ (secsRest - 60) * 1000 + millisRest
   in
     HH.div
       [ HCSS.style $ CSS.display CSS.flex
