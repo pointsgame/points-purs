@@ -6,6 +6,7 @@ import CSS as CSS
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
+import CSS.Text.Whitespace as CSSTextWhitespace
 import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
@@ -16,13 +17,20 @@ import Control.Monad.Maybe.Trans (runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
+import Data.DateTime (DateTime(..))
+import Data.DateTime.Instant (Instant)
+import Data.DateTime.Instant as Instant
 import Data.Either as Either
 import Data.Foldable (for_, traverse_)
+import Data.Int as Int
+import Data.Interval (Duration(..))
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
+import Data.MediaType (MediaType(..))
 import Data.Newtype (unwrap, wrap)
+import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
@@ -33,6 +41,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
+import Effect.Now as Now
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
@@ -42,6 +51,7 @@ import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HCSS
+import Halogen.HTML.Elements as HEl
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
@@ -446,6 +456,75 @@ menuComponent =
 _field :: Proxy "field"
 _field = Proxy
 
+countdown :: Boolean -> Instant -> Instant -> Milliseconds -> HH.PlainHTML
+countdown active now startTime duration =
+  let
+    timeSkew :: Milliseconds
+    timeSkew = if active then Instant.diff now startTime else Milliseconds 0.0
+    millisLeft = Int.round $ unwrap duration - unwrap timeSkew
+    secsLeft = millisLeft / 1000
+    minsLeft = secsLeft / 60
+    secsRest = secsLeft `mod` 60
+    millisRest = millisLeft `mod` 1000
+    delay = Int.toNumber $ (secsRest - 61) * 1000 + millisRest
+  in
+    HH.div
+      [ HCSS.style $ CSS.display CSS.flex
+      ] $
+      if active then
+        [ HEl.style [ HP.type_ $ MediaType "text/css" ]
+            [ HH.text
+                " @property --minutes {    \
+                \   syntax: \"<integer>\"; \
+                \   inherits: false;       \
+                \   initial-value: 0;      \
+                \ }                        \
+                \                          \
+                \ @property --seconds {    \
+                \   syntax: \"<integer>\"; \
+                \   inherits: false;       \
+                \   initial-value: 0;      \
+                \ }                        "
+            ]
+        , HCSS.stylesheet do
+            CSS.keyframesFromTo
+              "minutes-count"
+              (CSS.key (CSS.fromString "--minutes") (show $ minsLeft + 1))
+              (CSS.key (CSS.fromString "--minutes") "0")
+            CSS.keyframesFromTo
+              "seconds-count"
+              (CSS.key (CSS.fromString "--seconds") "60")
+              (CSS.key (CSS.fromString "--seconds") "0")
+            (CSS.star CSS.& CSS.byClass "minutes") CSS.& CSS.pseudo ":after" CSS.? do
+              CSS.key (CSS.fromString "counter-reset") "number calc(mod(var(--minutes), 60))"
+              CSS.animation
+                (CSS.fromString "minutes-count")
+                (CSS.ms (delay - 30000.0))
+                CSS.linear
+                (CSS.sec $ Int.toNumber $ (minsLeft + 1) * 60)
+                (CSS.iterationCount 1.0)
+                CSS.normalAnimationDirection
+                CSS.forwards
+              CSS.key (CSS.fromString "content") "counter(number, decimal-leading-zero)"
+            (CSS.star CSS.& CSS.byClass "seconds") CSS.& CSS.pseudo ":after" CSS.? do
+              CSS.key (CSS.fromString "counter-reset") "number calc(mod(var(--seconds), 60))"
+              CSS.animation
+                (CSS.fromString "seconds-count")
+                (CSS.ms (delay - 500.0))
+                CSS.linear
+                (CSS.sec 60.0)
+                (CSS.iterationCount $ Int.toNumber $ minsLeft + 1)
+                CSS.normalAnimationDirection
+                CSS.forwards
+              CSS.key (CSS.fromString "content") "counter(number, decimal-leading-zero)"
+        , HH.div [ HP.class_ $ wrap "minutes" ] []
+        , HH.label_ [ HH.text ":" ]
+        , HH.div [ HP.class_ $ wrap "seconds" ] []
+        ]
+      else
+        [ HH.label_ [ HH.text $ (if minsLeft < 10 then "0" else "") <> show minsLeft <> ":" <> (if secsRest < 10 then "0" else "") <> show secsRest ]
+        ]
+
 data AppQuery a = AppQuery Message.Response a
 
 type AppInput =
@@ -454,6 +533,7 @@ type AppInput =
   , players :: Message.Players
   , openGames :: Message.OpenGames
   , games :: Message.Games
+  , now :: Instant
   }
 
 appComponent
@@ -469,6 +549,12 @@ appComponent =
     players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
     activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
+    now /\ nowId <- Hooks.useState input.now
+
+    Hooks.captures {} Hooks.useTickEffect do
+      newNow <- liftEffect $ Now.now
+      Hooks.put nowId newNow
+      pure Maybe.Nothing
 
     Hooks.useLifecycleEffect do
       let
@@ -507,9 +593,9 @@ appComponent =
                     Hooks.put watchingGameIdId Maybe.Nothing
               )
               watchingGameId
-          Message.GameInitResponse gameId moves redPlayer blackPlayer _ _ ->
+          Message.GameInitResponse gameId moves redPlayer blackPlayer initTime timeLeft ->
             if Maybe.Just gameId == watchingGameId then
-              Hooks.put activeGameId $ Maybe.Just $ gameId /\ redPlayer /\ blackPlayer /\ Array.foldl
+              Hooks.put activeGameId $ Maybe.Just $ gameId /\ redPlayer /\ blackPlayer /\ initTime /\ timeLeft /\ Array.foldl
                 ( \fields move ->
                     Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
                 )
@@ -536,14 +622,16 @@ appComponent =
             Hooks.modify_ openGamesId $ Map.delete gameId
             Hooks.modify_ gamesId $ Map.insert gameId game
             when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
-          Message.PutPointResponse gameId move _ _ ->
+          Message.PutPointResponse gameId move puttingTime timeLeft ->
             case activeGame of
-              Maybe.Just (activeGameId' /\ redPlayer /\ blackPlayer /\ fields) | gameId == activeGameId' ->
+              Maybe.Just (activeGameId' /\ redPlayer /\ blackPlayer /\ _ /\ _ /\ fields) | gameId == activeGameId' ->
                 Hooks.put activeGameId
                   $ Maybe.Just
                   $ (/\) activeGameId'
                   $ (/\) redPlayer
                   $ (/\) blackPlayer
+                  $ (/\) puttingTime
+                  $ (/\) timeLeft
                   $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                   $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
                   $ NonEmptyList.head fields
@@ -594,13 +682,24 @@ appComponent =
                 ]
             , HH.div
                 [ HCSS.style do
+                    CSS.display CSS.flex
                     CSS.position CSS.absolute
                     CSS.top (CSS.pct 50.0)
                     CSS.left (CSS.pct 50.0)
                     CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
                     traverse_ CSS.color $ CSS.fromHexString "#333"
                 ] $ case activeGame of
-                Maybe.Just (_ /\ redPlayer /\ blackPlayer /\ _) -> [ HH.label_ [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname ] ]
+                Maybe.Just (_ /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
+                  let
+                    nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
+                    redTicking = nextPlayer == Player.Red
+                  in
+                    [ HH.fromPlainHTML $ countdown redTicking now puttingTime (Milliseconds $ Int.toNumber timeLeft.red)
+                    , HH.label
+                        [ HCSS.style $ CSS.textWhitespace CSSTextWhitespace.whitespacePre ]
+                        [ HH.text $ " " <> redPlayer.nickname <> " : " <> blackPlayer.nickname <> " " ]
+                    , HH.fromPlainHTML $ countdown (not redTicking) now puttingTime (Milliseconds $ Int.toNumber timeLeft.black)
+                    ]
                 Maybe.Nothing -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
@@ -668,7 +767,7 @@ appComponent =
                     CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]
                 [ case activeGame of
-                    Maybe.Just (gameId /\ redPlayer /\ blackPlayer /\ fields) ->
+                    Maybe.Just (gameId /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
                       let
                         game = Map.lookup gameId games
                         nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
@@ -688,6 +787,8 @@ appComponent =
                               $ (/\) gameId
                               $ (/\) redPlayer
                               $ (/\) blackPlayer
+                              $ (/\) puttingTime
+                              $ (/\) timeLeft
                               $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                               $ Field.putPoint (Tuple x y) nextPlayer
                               $ NonEmptyList.head fields
@@ -725,7 +826,7 @@ main = do
   window <- HTML.window
   redirect <- checkRedirect window
   unless redirect do
-    let connectionEffect = WS.create "wss://kropki.org/ws" []
+    let connectionEffect = WS.create "ws://127.0.0.1:8080" []
     connection <- connectionEffect
     connectionRef <- Ref.new connection
     listener <- EET.eventListener \event -> do
@@ -736,7 +837,9 @@ main = do
       body <- HA.awaitBody
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
         input <- CR.await >>= case _ of
-          Message.InitResponse authProviders playerId players openGames games -> pure $ { authProviders, playerId, players, openGames, games }
+          Message.InitResponse authProviders playerId players openGames games -> do
+            now <- liftEffect $ Now.now
+            pure { authProviders, playerId, players, openGames, games, now }
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
         io <- lift $ runUI appComponent input body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
