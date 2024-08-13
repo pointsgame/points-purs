@@ -137,7 +137,7 @@ instance EncodeJson Request where
 
 data Response
   = InitResponse (Array AuthProvider) (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
-  | GameInitResponse GameId (Array Move) Player Player Instant TimeLeft
+  | GameInitResponse GameId Game (Array Move) Instant TimeLeft
   | AuthUrlResponse String
   | AuthResponse PlayerId String
   | PlayerJoinedResponse PlayerId Player
@@ -168,7 +168,7 @@ instance DecodeJson Response where
         <*> (map unwrapStringMap $ obj .: "players")
         <*> (map unwrapStringMap $ obj .: "openGames")
         <*> (map unwrapStringMap $ obj .: "games")
-      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "moves" <*> obj .: "redPlayer" <*> obj .: "blackPlayer" <*> (map un $ obj .: "initTime") <*> obj .: "timeLeft"
+      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "game" <*> obj .: "moves" <*> (map un $ obj .: "initTime") <*> obj .: "timeLeft"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "playerId" <*> obj .: "player"

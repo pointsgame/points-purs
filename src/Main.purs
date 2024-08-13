@@ -17,13 +17,11 @@ import Control.Monad.Maybe.Trans (runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
-import Data.DateTime (DateTime(..))
 import Data.DateTime.Instant (Instant)
 import Data.DateTime.Instant as Instant
 import Data.Either as Either
 import Data.Foldable (for_, traverse_)
 import Data.Int as Int
-import Data.Interval (Duration(..))
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
 import Data.Maybe (Maybe)
@@ -593,9 +591,9 @@ appComponent =
                     Hooks.put watchingGameIdId Maybe.Nothing
               )
               watchingGameId
-          Message.GameInitResponse gameId moves redPlayer blackPlayer initTime timeLeft ->
+          Message.GameInitResponse gameId game moves initTime timeLeft ->
             if Maybe.Just gameId == watchingGameId then
-              Hooks.put activeGameId $ Maybe.Just $ gameId /\ redPlayer /\ blackPlayer /\ initTime /\ timeLeft /\ Array.foldl
+              Hooks.put activeGameId $ Maybe.Just $ gameId /\ game.config /\ game.redPlayer /\ game.blackPlayer /\ initTime /\ timeLeft /\ Array.foldl
                 ( \fields move ->
                     Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
                 )
@@ -624,10 +622,11 @@ appComponent =
             when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
           Message.PutPointResponse gameId move puttingTime timeLeft ->
             case activeGame of
-              Maybe.Just (activeGameId' /\ redPlayer /\ blackPlayer /\ _ /\ _ /\ fields) | gameId == activeGameId' ->
+              Maybe.Just (activeGameId' /\ config /\ redPlayer /\ blackPlayer /\ _ /\ _ /\ fields) | gameId == activeGameId' ->
                 Hooks.put activeGameId
                   $ Maybe.Just
                   $ (/\) activeGameId'
+                  $ (/\) config
                   $ (/\) redPlayer
                   $ (/\) blackPlayer
                   $ (/\) puttingTime
@@ -689,7 +688,7 @@ appComponent =
                     CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
                     traverse_ CSS.color $ CSS.fromHexString "#333"
                 ] $ case activeGame of
-                Maybe.Just (_ /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
+                Maybe.Just (_ /\ _ /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
                   let
                     nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
                     redTicking = nextPlayer == Player.Red
@@ -767,7 +766,7 @@ appComponent =
                     CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]
                 [ case activeGame of
-                    Maybe.Just (gameId /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
+                    Maybe.Just (gameId /\ config /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
                       let
                         game = Map.lookup gameId games
                         nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
@@ -782,13 +781,22 @@ appComponent =
                           fieldComponent
                           { fields, pointer }
                           \(Click (Tuple x y)) -> when pointer do
+                            now <- liftEffect $ Now.now
+                            let
+                              elapsed :: Milliseconds
+                              elapsed = Instant.diff now puttingTime
+                              diff = config.time.increment * 1000 - Int.ceil (unwrap elapsed)
                             Hooks.put activeGameId
                               $ Maybe.Just
                               $ (/\) gameId
+                              $ (/\) config
                               $ (/\) redPlayer
                               $ (/\) blackPlayer
-                              $ (/\) puttingTime
-                              $ (/\) timeLeft
+                              $ (/\) now
+                              $ (/\)
+                                  { red: timeLeft.red + if nextPlayer == Player.Red then diff else 0
+                                  , black: timeLeft.black + if nextPlayer == Player.Black then diff else 0
+                                  }
                               $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                               $ Field.putPoint (Tuple x y) nextPlayer
                               $ NonEmptyList.head fields
