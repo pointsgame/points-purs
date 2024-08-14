@@ -6,7 +6,6 @@ import CSS as CSS
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
-import CSS.Text.Whitespace as CSSTextWhitespace
 import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
@@ -54,6 +53,8 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
+import Halogen.Svg.Attributes as SvgAttributes
+import Halogen.Svg.Elements as SvgElements
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Player as Player
@@ -534,6 +535,20 @@ type AppInput =
   , now :: Instant
   }
 
+svgDot :: String -> HH.PlainHTML
+svgDot color = SvgElements.svg
+  [ SvgAttributes.width 16.0
+  , SvgAttributes.height 16.0
+  ]
+  [ SvgElements.circle
+      [ HP.attr (wrap "shape-rendering") "geometricPrecision"
+      , SvgAttributes.cx 8.0
+      , SvgAttributes.cy 8.0
+      , SvgAttributes.r 4.0
+      , SvgAttributes.fill $ SvgAttributes.Named color
+      ]
+  ]
+
 appComponent
   :: forall m
    . MonadAff m
@@ -681,6 +696,7 @@ appComponent =
                 ]
             , HH.div
                 [ HCSS.style do
+                    CSS.alignItems CSSCommon.center
                     CSS.display CSS.flex
                     CSS.position CSS.absolute
                     CSS.top (CSS.pct 50.0)
@@ -694,9 +710,10 @@ appComponent =
                     redTicking = nextPlayer == Player.Red
                   in
                     [ HH.fromPlainHTML $ countdown redTicking now puttingTime (Milliseconds $ Int.toNumber timeLeft.red)
-                    , HH.label
-                        [ HCSS.style $ CSS.textWhitespace CSSTextWhitespace.whitespacePre ]
-                        [ HH.text $ " " <> redPlayer.nickname <> " : " <> blackPlayer.nickname <> " " ]
+                    , HH.fromPlainHTML $ svgDot "red"
+                    , HH.label_
+                        [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname ]
+                    , HH.fromPlainHTML $ svgDot "black"
                     , HH.fromPlainHTML $ countdown (not redTicking) now puttingTime (Milliseconds $ Int.toNumber timeLeft.black)
                     ]
                 Maybe.Nothing -> []

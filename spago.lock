@@ -82,6 +82,7 @@ workspace:
         - halogen
         - halogen-css
         - halogen-hooks
+        - halogen-svg-elems
         - integers
         - lists
         - now
@@ -139,6 +140,7 @@ workspace:
         - halogen-css
         - halogen-hooks
         - halogen-subscriptions
+        - halogen-svg-elems
         - halogen-vdom
         - identity
         - integers
@@ -1223,6 +1225,12 @@ packages:
       - refs
       - safe-coerce
       - unsafe-reference
+  halogen-svg-elems:
+    type: registry
+    version: 8.0.0
+    integrity: sha256-NtZ30NoNyadVEsRcdY0zvm2yyahxUTgpioDNVz5gEIA=
+    dependencies:
+      - halogen
   halogen-vdom:
     type: registry
     version: 8.0.0

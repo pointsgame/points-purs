@@ -26,6 +26,7 @@ package:
     - web-url
     - datetime
     - now
+    - halogen-svg-elems
 workspace:
   backend:
     cmd: "purs-backend-es"
