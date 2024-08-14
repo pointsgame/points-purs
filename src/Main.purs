@@ -781,21 +781,21 @@ appComponent =
                           fieldComponent
                           { fields, pointer }
                           \(Click (Tuple x y)) -> when pointer do
-                            now <- liftEffect $ Now.now
+                            now' <- liftEffect $ Now.now
                             let
                               elapsed :: Milliseconds
-                              elapsed = Instant.diff now puttingTime
-                              diff = config.time.increment * 1000 - Int.ceil (unwrap elapsed)
+                              elapsed = Instant.diff now' puttingTime
+                              diff = Int.ceil (unwrap elapsed)
                             Hooks.put activeGameId
                               $ Maybe.Just
                               $ (/\) gameId
                               $ (/\) config
                               $ (/\) redPlayer
                               $ (/\) blackPlayer
-                              $ (/\) now
+                              $ (/\) now'
                               $ (/\)
-                                  { red: timeLeft.red + if nextPlayer == Player.Red then diff else 0
-                                  , black: timeLeft.black + if nextPlayer == Player.Black then diff else 0
+                                  { red: timeLeft.red - if nextPlayer == Player.Red then diff else 0
+                                  , black: timeLeft.black - if nextPlayer == Player.Black then diff else 0
                                   }
                               $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                               $ Field.putPoint (Tuple x y) nextPlayer
