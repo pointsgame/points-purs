@@ -794,8 +794,8 @@ appComponent =
                               $ (/\) blackPlayer
                               $ (/\) now'
                               $ (/\)
-                                  { red: timeLeft.red - if nextPlayer == Player.Red then diff else 0
-                                  , black: timeLeft.black - if nextPlayer == Player.Black then diff else 0
+                                  { red: max 0 (timeLeft.red - if nextPlayer == Player.Red then diff else 0)
+                                  , black: max 0 (timeLeft.black - if nextPlayer == Player.Black then diff else 0)
                                   }
                               $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
                               $ Field.putPoint (Tuple x y) nextPlayer
