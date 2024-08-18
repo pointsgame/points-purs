@@ -87,6 +87,57 @@ derive instance Generic AuthProvider _
 
 derive instance Eq AuthProvider
 
+data DrawReason = AgreementDrawReason | GroundedDrawReason
+
+derive instance Generic DrawReason _
+
+derive instance Eq DrawReason
+
+instance DecodeJson DrawReason where
+  decodeJson json = decodeJson json >>= case _ of
+    "Agreement" -> Right AgreementDrawReason
+    "Grounded" -> Right GroundedDrawReason
+    other -> Left $ UnexpectedValue $ encodeJson other
+
+instance Show DrawReason where
+  show = genericShow
+
+data WinReason = ResignedWinReason | GroundedWinReason | TimeOutWinReason
+
+derive instance Generic WinReason _
+
+derive instance Eq WinReason
+
+instance DecodeJson WinReason where
+  decodeJson json = decodeJson json >>= case _ of
+    "Resigned" -> Right ResignedWinReason
+    "Grounded" -> Right GroundedWinReason
+    "TimeOut" -> Right TimeOutWinReason
+    other -> Left $ UnexpectedValue $ encodeJson other
+
+instance Show WinReason where
+  show = genericShow
+
+data GameResult
+  = WinGameResult Color WinReason
+  | DrawGameResult DrawReason
+
+instance DecodeJson GameResult where
+  decodeJson json = do
+    obj <- decodeJson json
+    t <- obj .: "type"
+    case t of
+      "Win" -> WinGameResult <$> obj .: "winner" <*> obj .: "reason"
+      "Draw" -> DrawGameResult <$> obj .: "reason"
+      other -> Left $ UnexpectedValue $ encodeJson other
+
+derive instance Generic GameResult _
+
+derive instance Eq GameResult
+
+instance Show GameResult where
+  show = genericShow
+
 instance DecodeJson AuthProvider where
   decodeJson json = decodeJson json >>= case _ of
     "Portier" -> Right PortierAuthProvider
@@ -115,6 +166,8 @@ data Request
   | SubscribeRequest GameId
   | UnsubscribeRequest GameId
   | PutPointRequest GameId Coordinate
+  | ResignRequest GameId
+  | DrawRequest GameId
 
 derive instance Generic Request _
 
@@ -134,6 +187,8 @@ instance EncodeJson Request where
   encodeJson (SubscribeRequest gameId) = "command" := "Subscribe" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (UnsubscribeRequest gameId) = "command" := "Unsubscribe" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
+  encodeJson (ResignRequest gameId) = "command" := "Resign" ~> "gameId" := gameId ~> jsonEmptyObject
+  encodeJson (DrawRequest gameId) = "command" := "Draw" ~> "gameId" := gameId ~> jsonEmptyObject
 
 data Response
   = InitResponse (Array AuthProvider) (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
@@ -146,6 +201,8 @@ data Response
   | CloseResponse GameId
   | StartResponse GameId Game
   | PutPointResponse GameId Move Instant TimeLeft
+  | DrawResponse GameId
+  | GameResultResponse GameId GameResult
 
 derive instance Generic Response _
 
@@ -177,4 +234,6 @@ instance DecodeJson Response where
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "game"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
+      "Draw" -> DrawResponse <$> obj .: "gameId"
+      "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "gameResult"
       other -> Left $ UnexpectedValue $ encodeJson other

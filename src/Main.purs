@@ -581,6 +581,10 @@ appComponent =
                   $ NonEmptyList.head fields
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
+          Message.DrawResponse _ ->
+            pure unit
+          Message.GameResultResponse _ _ ->
+            pure unit
         pure $ Maybe.Just a
 
     Hooks.pure
