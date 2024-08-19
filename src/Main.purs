@@ -536,7 +536,7 @@ appComponent =
                     Hooks.put watchingGameIdId Maybe.Nothing
               )
               watchingGameId
-          Message.GameInitResponse gameId game moves initTime timeLeft ->
+          Message.GameInitResponse gameId game moves initTime drawOffer timeLeft ->
             if Maybe.Just gameId == watchingGameId then
               Hooks.put activeGameId $ Maybe.Just $ gameId /\ game.config /\ game.redPlayer /\ game.blackPlayer /\ initTime /\ timeLeft /\ Array.foldl
                 ( \fields move ->
@@ -581,7 +581,7 @@ appComponent =
                   $ NonEmptyList.head fields
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
-          Message.DrawResponse _ ->
+          Message.DrawResponse _ _ ->
             pure unit
           Message.GameResultResponse _ _ ->
             pure unit

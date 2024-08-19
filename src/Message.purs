@@ -192,7 +192,7 @@ instance EncodeJson Request where
 
 data Response
   = InitResponse (Array AuthProvider) (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
-  | GameInitResponse GameId Game (Array Move) Instant TimeLeft
+  | GameInitResponse GameId Game (Array Move) Instant (Maybe Color) TimeLeft
   | AuthUrlResponse String
   | AuthResponse PlayerId String
   | PlayerJoinedResponse PlayerId Player
@@ -201,7 +201,7 @@ data Response
   | CloseResponse GameId
   | StartResponse GameId Game
   | PutPointResponse GameId Move Instant TimeLeft
-  | DrawResponse GameId
+  | DrawResponse GameId Color
   | GameResultResponse GameId GameResult
 
 derive instance Generic Response _
@@ -225,7 +225,13 @@ instance DecodeJson Response where
         <*> (map unwrapStringMap $ obj .: "players")
         <*> (map unwrapStringMap $ obj .: "openGames")
         <*> (map unwrapStringMap $ obj .: "games")
-      "GameInit" -> GameInitResponse <$> obj .: "gameId" <*> obj .: "game" <*> obj .: "moves" <*> (map un $ obj .: "initTime") <*> obj .: "timeLeft"
+      "GameInit" -> GameInitResponse
+        <$> obj .: "gameId"
+        <*> obj .: "game"
+        <*> obj .: "moves"
+        <*> (map un $ obj .: "initTime")
+        <*> obj .:? "drawOffer"
+        <*> obj .: "timeLeft"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "playerId" <*> obj .: "player"
@@ -234,6 +240,6 @@ instance DecodeJson Response where
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "game"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
-      "Draw" -> DrawResponse <$> obj .: "gameId"
+      "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player"
       "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "gameResult"
       other -> Left $ UnexpectedValue $ encodeJson other
