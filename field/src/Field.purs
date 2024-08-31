@@ -22,6 +22,7 @@ module Field
   , lastPlayer
   , nextPlayer
   , putNextPoint
+  , winner
   ) where
 
 import Prelude
@@ -450,3 +451,9 @@ nextPlayer = Maybe.fromMaybe Player.Red <<< map Player.nextPlayer <<< lastPlayer
 
 putNextPoint :: Pos -> Field -> Maybe Field
 putNextPoint pos field = putPoint pos (nextPlayer field) field
+
+winner :: Field -> Maybe Player
+winner (Field field) = case compare field.scoreBlack field.scoreRed of
+  LT -> Maybe.Just Player.Red
+  GT -> Maybe.Just Player.Black
+  EQ -> Maybe.Nothing
