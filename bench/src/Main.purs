@@ -4,6 +4,10 @@ import Prelude
 
 import ArgParse.Basic (ArgParser)
 import ArgParse.Basic as ArgParse
+import Control.Monad.Rec.Class (forever)
+import Control.Monad.Trans.Class (class MonadTrans, lift)
+import Control.Monad.Writer (WriterT)
+import Control.Monad.Writer.Trans (execWriterT, tell)
 import Data.Array ((..))
 import Data.Array as Array
 import Data.Either as Either
@@ -15,8 +19,8 @@ import Effect.Class.Console as Console
 import Field (Pos, Field)
 import Field as Field
 import Node.Process (argv, exit')
-import Pipes ((<-<))
-import Pipes.Core (Producer)
+import Pipes ((<-<), await)
+import Pipes.Core (Consumer, Producer, runEffectRec)
 import Pipes.Prelude as Pipes
 import Player as Player
 import Random.LCG as LCG
@@ -57,8 +61,8 @@ randomGame :: Int -> Int -> Gen Field
 randomGame width height =
   Array.foldl (\field pos -> Maybe.fromMaybe field $ Field.putNextPoint pos field) (Field.emptyField width height) <$> Gen.shuffle (allMoves width height)
 
-randomGames :: Int -> Int -> Int -> Producer Field Gen Unit
-randomGames games width height = Pipes.replicateM games $ randomGame width height
+randomGames :: forall t. MonadTrans t => Monad (t Gen) => Int -> Int -> Int -> Producer Field (t Gen) Unit
+randomGames games width height = Pipes.replicateM games $ lift $ randomGame width height
 
 newtype Result = Result
   { red :: Int
@@ -79,6 +83,9 @@ gameResult field = case Field.winner field of
   Maybe.Just Player.Black -> Result { red: 0, black: 1 }
   Maybe.Nothing -> Result { red: 0, black: 0 }
 
+summator :: forall m. Monad m => Consumer Result (WriterT Result m) Unit
+summator = forever $ await >>= tell
+
 main :: Effect Unit
 main = do
   args <- argv
@@ -89,7 +96,6 @@ main = do
     Either.Right (Args args') -> do
       let
         Result result = flip Gen.evalGen { newSeed: LCG.mkSeed 0, size: 0 }
-          $ Pipes.fold append mempty identity
-          $
-            Pipes.map gameResult <-< randomGames args'.gamesNumber args'.width args'.height
+          $ execWriterT <<< runEffectRec
+          $ summator <-< Pipes.map gameResult <-< randomGames args'.gamesNumber args'.width args'.height
       Console.log $ show result.red <> ":" <> show result.black
