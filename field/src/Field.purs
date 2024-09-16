@@ -225,7 +225,7 @@ square chain = square' chain 0
   skewProduct (Tuple x1 y1) (Tuple x2 y2) = x1 * y2 - y1 * x2
 
 buildChain :: Field -> Pos -> Pos -> Player -> Maybe (NonEmptyList Pos)
-buildChain field startPos nextPos player = if NonEmptyList.length chain > 2 && square chain > 0 then Maybe.Just chain else Maybe.Nothing
+buildChain field startPos nextPos player = if square chain > 0 then Maybe.Just chain else Maybe.Nothing
   where
   chain = getChain startPos $ NonEmptyList.cons' nextPos $ List.singleton startPos
   getChain start list =
