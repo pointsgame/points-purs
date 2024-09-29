@@ -6,9 +6,10 @@ package:
     - lists
     - arrays
     - integers
-    - strings
-  test:
-    main: Test.Main
-    dependencies:
-      - unicode
-      - spec
+    # - strings
+    - ordered-collections
+  # test:
+    # main: Test.Main
+    # dependencies:
+      # - unicode
+      # - spec

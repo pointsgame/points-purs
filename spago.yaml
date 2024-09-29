@@ -2,38 +2,49 @@ package:
   name: points
   dependencies:
     - field
-    - console
-    - effect
-    - prelude
-    - tuples
-    - lists
-    - arrays
-    - integers
-    - strings
-    - transformers
-    - ordered-collections
-    - canvas
-    - web-socket
-    - argonaut
-    - argonaut-generic
-    - coroutines
-    - aff-coroutines
-    - exceptions
-    - refs
-    - halogen
-    - halogen-hooks
-    - halogen-css
-    - web-url
-    - datetime
-    - now
-    - halogen-svg-elems
+    # - console
+    # - effect
+    # - prelude
+    # - tuples
+    # - lists
+    # - arrays
+    # - integers
+    # - strings
+    # - transformers
+    # - ordered-collections
+    # - canvas
+    # - web-socket
+    # - argonaut
+    # - argonaut-generic
+    # - coroutines
+    # - aff-coroutines
+    # - exceptions
+    # - refs
+    # - halogen
+    # - halogen-hooks
+    # - halogen-css
+    # - web-url
+    # - datetime
+    # - now
+    # - halogen-svg-elems
 workspace:
+  # backend:
+  #   cmd: "purs-backend-es"
+  #   args:
+  #     - "build"
+  #     - "--int-tags"
+  #     - "--output-dir=output"
   backend:
-    cmd: "purs-backend-es"
+    cmd: "purescm"
     args:
       - "build"
-      - "--int-tags"
-      - "--output-dir=output"
   packageSet:
-    registry: 56.3.0
-  extraPackages: {}
+    url: https://raw.githubusercontent.com/purescm/purescm/master/package-sets/1.0.0.json
+  # packageSet:
+    # registry: 56.3.0
+  extraPackages:
+    argparse-basic: 2.0.0
+    strings:
+      git: "https://github.com/purescm/purescript-core.git"
+      ref: "ca099b896e24f5f8875a16dff8e1b333c2475da8"
+      subdir: "strings"

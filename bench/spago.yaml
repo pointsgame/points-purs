@@ -4,6 +4,6 @@ package:
     - prelude
     - field
     - quickcheck
-    - pipes
+    # - pipes
     - argparse-basic
-    - node-process
+    # - node-process
