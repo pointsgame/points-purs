@@ -4,8 +4,8 @@ import Prelude
 
 import ArgParse.Basic (ArgParser)
 import ArgParse.Basic as ArgParse
-import Control.Monad.Rec.Class (forever)
-import Control.Monad.Trans.Class (class MonadTrans, lift)
+import Control.Monad.Rec.Class (Step(..), tailRecM)
+import Control.Monad.Trans.Class (lift)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Writer.Trans (execWriterT, tell)
 import Data.Array ((..))
@@ -18,10 +18,6 @@ import Effect (Effect)
 import Effect.Class.Console as Console
 import Field (Pos, Field)
 import Field as Field
-import Node.Process (argv, exit')
-import Pipes ((<-<), await)
-import Pipes.Core (Consumer, Producer, runEffectRec)
-import Pipes.Prelude as Pipes
 import Player as Player
 import Random.LCG as LCG
 import Test.QuickCheck.Gen (Gen)
@@ -61,9 +57,6 @@ randomGame :: Int -> Int -> Gen Field
 randomGame width height =
   Array.foldl (\field pos -> Maybe.fromMaybe field $ Field.putNextPoint pos field) (Field.emptyField width height) <$> Gen.shuffle (allMoves width height)
 
-randomGames :: forall t. MonadTrans t => Monad (t Gen) => Int -> Int -> Int -> Producer Field (t Gen) Unit
-randomGames games width height = Pipes.replicateM games $ lift $ randomGame width height
-
 newtype Result = Result
   { red :: Int
   , black :: Int
@@ -83,8 +76,17 @@ gameResult field = case Field.winner field of
   Maybe.Just Player.Black -> Result { red: 0, black: 1 }
   Maybe.Nothing -> Result { red: 0, black: 0 }
 
-summator :: forall m. Monad m => Consumer Result (WriterT Result m) Unit
-summator = forever $ await >>= tell
+randomGamesResult :: Int -> Int -> Int -> WriterT Result Gen Unit
+randomGamesResult n width height = tailRecM go n
+  where
+  go 0 = pure $ Done unit
+  go n' = do
+    game <- lift $ randomGame width height
+    tell $ gameResult game
+    pure $ Loop $ n' - 1
+
+foreign import exit :: forall a. Int -> Effect a
+foreign import argv :: Effect (Array String)
 
 main :: Effect Unit
 main = do
@@ -92,10 +94,8 @@ main = do
   case ArgParse.parseArgs "bench" "Field benchmark." argsParser (Array.drop 2 args) of
     Either.Left e -> do
       Console.log $ ArgParse.printArgError e
-      exit' 1
+      exit 1
     Either.Right (Args args') -> do
       let
-        Result result = flip Gen.evalGen { newSeed: LCG.mkSeed 0, size: 0 }
-          $ execWriterT <<< runEffectRec
-          $ summator <-< Pipes.map gameResult <-< randomGames args'.gamesNumber args'.width args'.height
+        Result result = flip Gen.evalGen { newSeed: LCG.mkSeed (args'.seed), size: 0 } $ execWriterT $ randomGamesResult args'.gamesNumber args'.width args'.height
       Console.log $ show result.red <> ":" <> show result.black

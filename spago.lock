@@ -6,22 +6,16 @@ workspace:
         dependencies:
           - argparse-basic
           - field
-          - node-process
-          - pipes
           - prelude
           - quickcheck
         build_plan:
-          - aff
           - argparse-basic
-          - arraybuffer-types
           - arrays
           - bifunctors
-          - catenable-lists
           - console
           - const
           - contravariant
           - control
-          - datetime
           - distributive
           - effect
           - either
@@ -30,9 +24,6 @@ workspace:
           - exists
           - field
           - foldable-traversable
-          - foreign
-          - foreign-object
-          - free
           - functions
           - functors
           - gen
@@ -43,21 +34,12 @@ workspace:
           - lcg
           - lists
           - maybe
-          - mmorph
           - newtype
-          - node-buffer
-          - node-event-emitter
-          - node-process
-          - node-streams
           - nonempty
-          - nullable
           - numbers
           - ordered-collections
           - orders
-          - parallel
           - partial
-          - pipes
-          - posix-types
           - prelude
           - profunctor
           - quickcheck
@@ -71,7 +53,6 @@ workspace:
           - transformers
           - tuples
           - type-equality
-          - typelevel-prelude
           - unfoldable
           - unsafe-coerce
       test:
@@ -1498,56 +1479,6 @@ packages:
     dependencies:
       - prelude
       - safe-coerce
-  node-buffer:
-    type: registry
-    version: 9.0.0
-    integrity: sha256-PWE2DJ5ruBLCmeA/fUiuySEFmUJ/VuRfyrnCuVZBlu4=
-    dependencies:
-      - arraybuffer-types
-      - effect
-      - maybe
-      - nullable
-      - st
-      - unsafe-coerce
-  node-event-emitter:
-    type: registry
-    version: 3.0.0
-    integrity: sha256-Qw0MjsT4xRH2j2i4K8JmRjcMKnH5z1Cw39t00q4LE4w=
-    dependencies:
-      - effect
-      - either
-      - functions
-      - maybe
-      - nullable
-      - prelude
-      - unsafe-coerce
-  node-process:
-    type: registry
-    version: 11.2.0
-    integrity: sha256-+2MQDYChjGbVbapCyJtuWYwD41jk+BntF/kcOTKBMVs=
-    dependencies:
-      - effect
-      - foreign
-      - foreign-object
-      - maybe
-      - node-event-emitter
-      - node-streams
-      - posix-types
-      - prelude
-      - unsafe-coerce
-  node-streams:
-    type: registry
-    version: 9.0.0
-    integrity: sha256-2n6dq7YWleTDmD1Kur/ul7Cn08IvWrScgPf+0PgX2TQ=
-    dependencies:
-      - aff
-      - effect
-      - either
-      - exceptions
-      - node-buffer
-      - node-event-emitter
-      - nullable
-      - prelude
   nonempty:
     type: registry
     version: 7.0.0
@@ -1637,13 +1568,6 @@ packages:
       - tailrec
       - transformers
       - tuples
-  posix-types:
-    type: registry
-    version: 6.0.0
-    integrity: sha256-ZfFz8RR1lee/o/Prccyeut3Q+9tYd08mlR72sIh6GzA=
-    dependencies:
-      - maybe
-      - prelude
   prelude:
     type: registry
     version: 6.0.1
