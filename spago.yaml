@@ -35,5 +35,5 @@ workspace:
       - "--int-tags"
       - "--output-dir=output"
   packageSet:
-    registry: 56.3.0
+    registry: 66.2.0
   extraPackages: {}
