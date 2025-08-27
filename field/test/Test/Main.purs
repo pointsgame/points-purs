@@ -16,14 +16,13 @@ import Data.String.CodeUnits as CodeUnits
 import Data.Tuple as Tuple
 import Data.Tuple.Nested as NestedTuple
 import Effect (Effect)
-import Effect.Aff (launchAff_)
 import Effect.Exception (Error, error)
 import Field (Field, emptyField, isPuttingAllowed, putPoint)
 import Player as Player
 import Test.Spec (Spec, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Test.Spec.Runner (runSpec)
+import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 constructField :: forall m. MonadThrow Error m => String -> m Field
 constructField image =
@@ -394,7 +393,7 @@ twoSurroundingsWithCommonDotOneBorderlineEmptyPlace =
       map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
 
 main :: Effect Unit
-main = launchAff_ $ runSpec [ consoleReporter ] do
+main = runSpecAndExitProcess [ consoleReporter ] do
   simpleSurround
   surroundEmptyTerritory
   movePriority

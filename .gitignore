@@ -9,4 +9,5 @@ generated-docs/
 .purs*
 .psa*
 .spago
+.spec-results
 .direnv
