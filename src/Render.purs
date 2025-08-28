@@ -200,9 +200,10 @@ draw
                 $ polygon context
                 $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.sw pos) : List.Nil
     --Rendering surroundings.
-    for_ (List.concatMap (List.fromFoldable <<< Field.lastSurroundChain) $ NonEmptyList.toList $ NonEmptyList.reverse fields) \(Tuple chain player) -> do
-      setFillStyle context $ if player == Player.Red then redColor else blackColor
-      polygon context $ map fromPos chain
+    for_ (NonEmptyList.reverse fields) \field ->
+      when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
+        setFillStyle context $ if Field.lastSurroundPlayer field == Player.Red then redColor else blackColor
+        polygon context $ map fromPos $ NonEmptyList.toList chain
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
 drawPointer

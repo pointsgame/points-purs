@@ -8,7 +8,7 @@ import Data.CodePoint.Unicode as UnicodeCodePoint
 import Data.Foldable as Foldable
 import Data.FunctorWithIndex as FunctorWithIndex
 import Data.List as List
-import Data.Maybe as Maybe
+import Data.List.NonEmpty as NonEmptyList
 import Data.Newtype (unwrap)
 import Data.String as String
 import Data.String.CodePoints (codePointFromChar)
@@ -54,9 +54,8 @@ simpleSurround =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 0 1)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
 
 surroundEmptyTerritory :: Spec Unit
 surroundEmptyTerritory =
@@ -70,7 +69,7 @@ surroundEmptyTerritory =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 0
       (unwrap field).scoreBlack `shouldEqual` 0
-      (unwrap field).lastSurroundChain `shouldEqual` Maybe.Nothing
+      (unwrap field).lastSurroundChains `shouldEqual` List.Nil
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 1 1)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 0 1)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 1 0)
@@ -89,9 +88,8 @@ movePriority =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 0
       (unwrap field).scoreBlack `shouldEqual` 1
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 1)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Black
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
 
 movePriorityBig :: Spec Unit
 movePriorityBig =
@@ -106,9 +104,8 @@ movePriorityBig =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 0
       (unwrap field).scoreBlack `shouldEqual` 2
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 6
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 2)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Black
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: List.Nil)
 
 onionSurroundings :: Spec Unit
 onionSurroundings =
@@ -124,8 +121,8 @@ onionSurroundings =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 4
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 8
 
 deepOnionSurroundings :: Spec Unit
 deepOnionSurroundings =
@@ -143,8 +140,8 @@ deepOnionSurroundings =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 0
       (unwrap field).scoreBlack `shouldEqual` 9
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Black
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 12
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Black
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 12
 
 applyControlSurroundingInSameTurn :: Spec Unit
 applyControlSurroundingInSameTurn =
@@ -158,8 +155,8 @@ applyControlSurroundingInSameTurn =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
 
 doubleSurround :: Spec Unit
 doubleSurround =
@@ -173,9 +170,8 @@ doubleSurround =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 2
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 1)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: List.Nil)
 
 doubleSurroundWithEmptyPart :: Spec Unit
 doubleSurroundWithEmptyPart =
@@ -189,9 +185,8 @@ doubleSurroundWithEmptyPart =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 1)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 1 1)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 3 1)
 
@@ -211,8 +206,8 @@ shouldNotLeaveEmptyInside =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 18
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 18
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 3)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 4)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 2 2)
@@ -232,8 +227,8 @@ surroundInOppositeTurn =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
 
 partlySurroundInOppositeTurn :: Spec Unit
 partlySurroundInOppositeTurn =
@@ -248,8 +243,8 @@ partlySurroundInOppositeTurn =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 2 2)
 
 holeInsideSurrounding :: Spec Unit
@@ -270,9 +265,8 @@ holeInsideSurrounding =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 16
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 4 8)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 16
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 4)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 1)
 
@@ -294,8 +288,8 @@ holeInsideSurroundingAfterOppositeTurnSurrounding =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 16
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 16
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 4)
       shouldSatisfy field $ not <<< flip isPuttingAllowed (Tuple.Tuple 4 1)
 
@@ -317,8 +311,8 @@ surroundingDoesNotExpand =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 1
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 4
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 6 3)
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 4 3)
       shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 4 5)
@@ -338,9 +332,8 @@ twoSurroundingsWithCommonBorder =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 2
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 6
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 1 2)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: List.Nil)
 
 twoSurroundingsWithCommonDot :: Spec Unit
 twoSurroundingsWithCommonDot =
@@ -354,8 +347,8 @@ twoSurroundingsWithCommonDot =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 2
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: List.Nil)
 
 threeSurroundingsWithCommonBorders :: Spec Unit
 threeSurroundingsWithCommonBorders =
@@ -371,9 +364,8 @@ threeSurroundingsWithCommonBorders =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 3
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
-      bind (unwrap field).lastSurroundChain (List.last <<< Tuple.fst) `shouldEqual` Maybe.Just (Tuple.Tuple 2 2)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: 4 List.: List.Nil)
 
 twoSurroundingsWithCommonDotOneBorderlineEmptyPlace :: Spec Unit
 twoSurroundingsWithCommonDotOneBorderlineEmptyPlace =
@@ -389,8 +381,46 @@ twoSurroundingsWithCommonDotOneBorderlineEmptyPlace =
       field <- constructField image
       (unwrap field).scoreRed `shouldEqual` 2
       (unwrap field).scoreBlack `shouldEqual` 0
-      map Tuple.snd (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just Player.Red
-      map (List.length <<< Tuple.fst) (unwrap field).lastSurroundChain `shouldEqual` Maybe.Just 8
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` (4 List.: 4 List.: List.Nil)
+
+ambiguousSurrounding1 :: Spec Unit
+ambiguousSurrounding1 =
+  let
+    image =
+      " .aa.aa. \
+      \ a..b..a \
+      \ a.aAa.a \
+      \ a..a..a \
+      \ .a...a. \
+      \ ..aaa.. "
+  in
+    it "ambiguous surrounding 1" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 3 4)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
+
+ambiguousSurrounding2 :: Spec Unit
+ambiguousSurrounding2 =
+  let
+    image =
+      " ..aaa.. \
+      \ .a...a. \
+      \ a..a..a \
+      \ a.aAa.a \
+      \ a..b..a \
+      \ .aa.aa. "
+  in
+    it "ambiguous surrounding 2" $ do
+      field <- constructField image
+      (unwrap field).scoreRed `shouldEqual` 1
+      (unwrap field).scoreBlack `shouldEqual` 0
+      shouldSatisfy field $ flip isPuttingAllowed (Tuple.Tuple 3 1)
+      (unwrap field).lastSurroundPlayer `shouldEqual` Player.Red
+      map (NonEmptyList.length) (unwrap field).lastSurroundChains `shouldEqual` List.singleton 4
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -413,3 +443,5 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   twoSurroundingsWithCommonDot
   threeSurroundingsWithCommonBorders
   twoSurroundingsWithCommonDotOneBorderlineEmptyPlace
+  ambiguousSurrounding1
+  ambiguousSurrounding2

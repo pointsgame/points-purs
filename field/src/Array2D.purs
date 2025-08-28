@@ -7,6 +7,7 @@ module Array2D
   , mapWithIndex
   , notElem
   , replicate
+  , updateAt
   , updateAtIndices
   , unsafeIndex
   ) where
@@ -54,6 +55,9 @@ notElem v (Array2D a) = Array.notElem v a.array
 
 replicate :: forall a. Int -> Int -> a -> Array2D a
 replicate w h e = Array2D { width: w, array: Array.replicate (w * h) e }
+
+updateAt :: forall a. Tuple.Tuple Int Int -> a -> Array2D a -> Maybe.Maybe (Array2D a)
+updateAt (Tuple.Tuple x y) v (Array2D a) = Functor.map (\a' -> Array2D { width: a.width, array: a' }) $ Array.updateAt (toIndex a.width x y) v a.array
 
 updateAtIndices :: forall t a. Foldable.Foldable t => Functor t => t (Tuple.Tuple (Tuple.Tuple Int Int) a) -> Array2D a -> Array2D a
 updateAtIndices elements (Array2D a) = Array2D a
