@@ -7,10 +7,10 @@ package:
     - arrays
     - integers
     - ordered-collections
+    - strings
   test:
     main: Test.Main
     dependencies:
-      - strings
       - unicode
       - spec
       - spec-node

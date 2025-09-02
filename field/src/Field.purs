@@ -15,6 +15,8 @@ module Field
   , moves
   , lastSurroundPlayer
   , lastSurroundChains
+  , scoreRed
+  , scoreBlack
   , isFull
   , isPuttingAllowed
   , isPlayer
@@ -130,6 +132,12 @@ lastSurroundPlayer (Field field) = field.lastSurroundPlayer
 
 lastSurroundChains :: Field -> List (NonEmptyList Pos)
 lastSurroundChains (Field field) = field.lastSurroundChains
+
+scoreRed :: Field -> Int
+scoreRed (Field field) = field.scoreRed
+
+scoreBlack :: Field -> Int
+scoreBlack (Field field) = field.scoreBlack
 
 isFull :: Field -> Boolean
 isFull (Field field) = Array2D.notElem EmptyCell field.cells

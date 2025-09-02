@@ -73,6 +73,7 @@
             "lists",
             "ordered-collections",
             "prelude",
+            "strings",
             "tuples"
           ],
           "build_plan": [
@@ -84,6 +85,7 @@
             "distributive",
             "effect",
             "either",
+            "enums",
             "exists",
             "foldable-traversable",
             "functions",
@@ -106,6 +108,7 @@
             "refs",
             "safe-coerce",
             "st",
+            "strings",
             "tailrec",
             "tuples",
             "type-equality",
@@ -117,7 +120,6 @@
           "dependencies": [
             "spec",
             "spec-node",
-            "strings",
             "unicode"
           ],
           "build_plan": [
@@ -328,6 +330,79 @@
             "web-touchevents",
             "web-uievents",
             "web-url"
+          ]
+        },
+        "test": {
+          "dependencies": [],
+          "build_plan": []
+        }
+      },
+      "verify": {
+        "path": "verify",
+        "core": {
+          "dependencies": [
+            "console",
+            "field",
+            "node-readline",
+            "prelude"
+          ],
+          "build_plan": [
+            "aff",
+            "arraybuffer-types",
+            "arrays",
+            "bifunctors",
+            "console",
+            "const",
+            "contravariant",
+            "control",
+            "datetime",
+            "distributive",
+            "effect",
+            "either",
+            "enums",
+            "exceptions",
+            "exists",
+            "field",
+            "foldable-traversable",
+            "foreign",
+            "foreign-object",
+            "functions",
+            "functors",
+            "gen",
+            "identity",
+            "integers",
+            "invariant",
+            "lazy",
+            "lists",
+            "maybe",
+            "newtype",
+            "node-buffer",
+            "node-event-emitter",
+            "node-process",
+            "node-readline",
+            "node-streams",
+            "nonempty",
+            "nullable",
+            "numbers",
+            "options",
+            "ordered-collections",
+            "orders",
+            "parallel",
+            "partial",
+            "posix-types",
+            "prelude",
+            "profunctor",
+            "refs",
+            "safe-coerce",
+            "st",
+            "strings",
+            "tailrec",
+            "transformers",
+            "tuples",
+            "type-equality",
+            "typelevel-prelude",
+            "unfoldable",
+            "unsafe-coerce"
           ]
         },
         "test": {
@@ -1764,6 +1839,20 @@
         "unsafe-coerce"
       ]
     },
+    "node-readline": {
+      "type": "registry",
+      "version": "8.1.1",
+      "integrity": "sha256-ZaMhfptiCquFZiDtUpH/dSBq0dPSMwQOSje5XzSAbbo=",
+      "dependencies": [
+        "effect",
+        "foreign",
+        "node-event-emitter",
+        "node-process",
+        "node-streams",
+        "options",
+        "prelude"
+      ]
+    },
     "node-streams": {
       "type": "registry",
       "version": "9.0.1",
@@ -1839,6 +1928,18 @@
         "partial",
         "prelude",
         "strings",
+        "tuples"
+      ]
+    },
+    "options": {
+      "type": "registry",
+      "version": "7.0.0",
+      "integrity": "sha256-treC6h+jvzcWhplPaF/aMENCOx+JGk+ysa5pL1BGHtg=",
+      "dependencies": [
+        "contravariant",
+        "foreign",
+        "foreign-object",
+        "maybe",
         "tuples"
       ]
     },
