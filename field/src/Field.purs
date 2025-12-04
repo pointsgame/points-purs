@@ -401,10 +401,10 @@ putPoint pos player (Field field)
                         $ buildChain (Field field) pos chainPos player
             in
               if point == EmptyBaseCell enemyPlayer then
-                let
-                  enemyEmptyBase = wave (Field fieldWithCaptures) pos (\pos' -> isEmptyBase (Field fieldWithCaptures) pos' enemyPlayer)
-                in
-                  if not $ List.null fieldWithCaptures.lastSurroundChains then
+                if not $ List.null fieldWithCaptures.lastSurroundChains then
+                  let
+                    enemyEmptyBase = wave (Field fieldWithCaptures) pos (\pos' -> isEmptyBase (Field fieldWithCaptures) pos' enemyPlayer)
+                  in
                     Field fieldWithCaptures
                       { moves = newMoves
                       , cells = Array2D.updateAtIndices
@@ -414,23 +414,23 @@ putPoint pos player (Field field)
                           )
                           fieldWithCaptures.cells
                       }
-                  else
-                    let
-                      (Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase (Field field) pos enemyPlayer
-                    in
-                      Field fieldWithCaptures
-                        { scoreRed = if player == Player.Red then field.scoreRed else field.scoreRed + 1
-                        , scoreBlack = if player == Player.Black then field.scoreBlack else field.scoreBlack + 1
-                        , moves = newMoves
-                        , lastSurroundPlayer = enemyPlayer
-                        , lastSurroundChains = List.singleton enemyEmptyBaseChain
-                        , cells = Array2D.updateAtIndices
-                            ( List.snoc
-                                (map (\pos' -> Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
-                                (Tuple pos $ BaseCell enemyPlayer true)
-                            )
-                            field.cells
-                        }
+                else
+                  let
+                    (Tuple enemyEmptyBaseChain enemyEmptyBase) = getEmptyBase (Field field) pos enemyPlayer
+                  in
+                    Field fieldWithCaptures
+                      { scoreRed = if player == Player.Red then field.scoreRed else field.scoreRed + 1
+                      , scoreBlack = if player == Player.Black then field.scoreBlack else field.scoreBlack + 1
+                      , moves = newMoves
+                      , lastSurroundPlayer = enemyPlayer
+                      , lastSurroundChains = List.singleton enemyEmptyBaseChain
+                      , cells = Array2D.updateAtIndices
+                          ( List.snoc
+                              (map (\pos' -> Tuple pos' $ BaseCell enemyPlayer false) (List.fromFoldable enemyEmptyBase))
+                              (Tuple pos $ BaseCell enemyPlayer true)
+                          )
+                          field.cells
+                      }
               else
                 Field fieldWithCaptures
                   { moves = newMoves
