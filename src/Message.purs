@@ -81,12 +81,6 @@ type Players = Map PlayerId Player
 type OpenGames = Map GameId OpenGame
 type Games = Map GameId Game
 
-data AuthProvider = PortierAuthProvider | GoogleAuthProvider | GitLabAuthProvider | TestAuthProvider
-
-derive instance Generic AuthProvider _
-
-derive instance Eq AuthProvider
-
 data DrawReason = AgreementDrawReason | GroundedDrawReason
 
 derive instance Generic DrawReason _
@@ -138,25 +132,8 @@ derive instance Eq GameResult
 instance Show GameResult where
   show = genericShow
 
-instance DecodeJson AuthProvider where
-  decodeJson json = decodeJson json >>= case _ of
-    "Portier" -> Right PortierAuthProvider
-    "Google" -> Right GoogleAuthProvider
-    "GitLab" -> Right GitLabAuthProvider
-    "Test" -> Right TestAuthProvider
-    other -> Left $ UnexpectedValue $ encodeJson other
-
-instance EncodeJson AuthProvider where
-  encodeJson PortierAuthProvider = encodeJson "Portier"
-  encodeJson GoogleAuthProvider = encodeJson "Google"
-  encodeJson GitLabAuthProvider = encodeJson "GitLab"
-  encodeJson TestAuthProvider = encodeJson "Test"
-
-instance Show AuthProvider where
-  show = genericShow
-
 data Request
-  = GetAuthUrlRequest AuthProvider Boolean
+  = GetAuthUrlRequest Boolean
   | AuthRequest String String
   | AuthTestRequest String
   | SignOutRequest
@@ -177,7 +154,7 @@ instance Show Request where
   show = genericShow
 
 instance EncodeJson Request where
-  encodeJson (GetAuthUrlRequest provider rememberMe) = "command" := "GetAuthUrl" ~> "provider" := encodeJson provider ~> "rememberMe" := rememberMe ~> jsonEmptyObject
+  encodeJson (GetAuthUrlRequest rememberMe) = "command" := "GetAuthUrl" ~> "rememberMe" := rememberMe ~> jsonEmptyObject
   encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
   encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
   encodeJson SignOutRequest = "command" := "SignOut" ~> jsonEmptyObject
@@ -191,7 +168,7 @@ instance EncodeJson Request where
   encodeJson (DrawRequest gameId) = "command" := "Draw" ~> "gameId" := gameId ~> jsonEmptyObject
 
 data Response
-  = InitResponse (Array AuthProvider) (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
+  = InitResponse (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
   | GameInitResponse GameId Game (Array Move) Instant (Maybe Color) TimeLeft
   | AuthUrlResponse String
   | AuthResponse PlayerId String
@@ -220,8 +197,7 @@ instance DecodeJson Response where
     command <- obj .: "command"
     case command of
       "Init" -> InitResponse
-        <$> obj .: "authProviders"
-        <*> obj .:? "playerId"
+        <$> obj .:? "playerId"
         <*> (map unwrapStringMap $ obj .: "players")
         <*> (map unwrapStringMap $ obj .: "openGames")
         <*> (map unwrapStringMap $ obj .: "games")
