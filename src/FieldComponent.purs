@@ -42,12 +42,13 @@ foreign import offsetX :: MouseEvent -> Number
 foreign import offsetY :: MouseEvent -> Number
 -- Forces software rendering on canvas, needed because hardware rendering is buggy in firefox.
 foreign import getContext2DThatWillReadFrequently :: CanvasElement -> Effect Context2D
+foreign import devicePixelRatio :: HTML.Window -> Number
 
 toHTMLCanvasElement :: CanvasElement -> HTMLCanvasElement
 toHTMLCanvasElement = unsafeCoerce
 
-toPos :: CanvasElement -> Field -> DrawSettings -> Number -> Number -> Effect (Maybe Pos)
-toPos canvas field drawSettings x y = do
+toPos :: CanvasElement -> Field -> DrawSettings -> Number -> Number -> Number -> Effect (Maybe Pos)
+toPos canvas field drawSettings scale x y = do
   width <- getCanvasWidth canvas
   height <- getCanvasHeight canvas
   let
@@ -57,8 +58,8 @@ toPos canvas field drawSettings x y = do
     vReflection = drawSettings.vReflection
     gridThickness = drawSettings.gridThickness
     _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
-    posX = toGamePosX x
-    posY = toGamePosY y
+    posX = toGamePosX $ x * scale
+    posY = toGamePosY $ y * scale
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
 
 type Input = { fields :: NonEmptyList Field, pointer :: Boolean }
@@ -98,8 +99,10 @@ fieldComponent =
     Hooks.captures { size, input: input.fields } Hooks.useTickEffect do
       let
         setCanvasSize canvas = for_ size \{ width, height } -> do
-          setCanvasWidth canvas width
-          setCanvasHeight canvas height
+          window <- HTML.window
+          let dpr = devicePixelRatio window
+          setCanvasWidth canvas $ width * dpr
+          setCanvasHeight canvas $ height * dpr
       liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
         setCanvasSize canvas
         width <- getCanvasWidth canvas
@@ -125,6 +128,8 @@ fieldComponent =
                 CSS.position CSS.absolute
                 CSS.top $ CSS.px 0.0
                 CSS.left $ CSS.px 0.0
+                CSS.width $ CSS.pct 100.0
+                CSS.height $ CSS.pct 100.0
             ]
         , HH.canvas $
             [ HP.id "canvas-pointer"
@@ -133,20 +138,26 @@ fieldComponent =
                 CSS.position CSS.absolute
                 CSS.top $ CSS.px 0.0
                 CSS.left $ CSS.px 0.0
+                CSS.width $ CSS.pct 100.0
+                CSS.height $ CSS.pct 100.0
             , HE.onClick \e -> void $ runMaybeT $ do
                 pos <- mapMaybeT liftEffect $ do
+                  window <- lift HTML.window
+                  let dpr = devicePixelRatio window
                   canvas <- wrap $ getCanvasElementById "canvas-pointer"
-                  wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                  wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings dpr (offsetX e) (offsetY e)
                 when (Field.isPuttingAllowed (NonEmptyList.head input.fields) pos)
                   $ lift
                   $ Hooks.raise outputToken
                   $ Click pos
             , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
+                window <- lift HTML.window
+                let dpr = devicePixelRatio window
                 canvas <- wrap $ getCanvasElementById "canvas-pointer"
                 width <- lift $ getCanvasWidth canvas
                 height <- lift $ getCanvasHeight canvas
                 context <- lift $ getContext2D canvas
-                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings (offsetX e) (offsetY e)
+                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings dpr (offsetX e) (offsetY e)
                 lift $ drawPointer defaultDrawSettings width height input.fields pos context
             ]
         ]
