@@ -53,6 +53,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Subscription as HS
 import Halogen.Svg.Attributes as SvgAttributes
+import Halogen.Svg.Attributes.StrokeLineCap (StrokeLineCap(..))
 import Halogen.Svg.Elements as SvgElements
 import Halogen.VDom.Driver (runUI)
 import Message as Message
@@ -310,11 +311,7 @@ signinComponent =
       [ HP.id "menu"
       , HCSS.style $ CSS.position $ CSS.relative
       ]
-      [ HH.button
-          [ HP.id "menu-btn"
-          , HCSS.style buttonStyle
-          ]
-          [ HH.text "Sign in" ]
+      [ HH.fromPlainHTML svgMenu
       , HH.div
           [ HP.id "menu-list"
           , HCSS.style do
@@ -336,7 +333,7 @@ signinComponent =
                     , HCSS.style buttonStyle
                     , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn)
                     ]
-                    [ HH.text "Email" ]
+                    [ HH.text "Sign in" ]
                 ]
             else
               HH.div
@@ -364,7 +361,7 @@ signinComponent =
                   CSS.alignItems CSSCommon.center
                   CSS.padding (CSS.px 2.0) (CSS.px 0.0) (CSS.px 2.0) (CSS.px 0.0)
               ]
-              [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox ]
+              [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox, HP.checked true ]
               , HH.label
                   [ HP.for "remember-me"
                   , HCSS.style $ do
@@ -443,6 +440,29 @@ svgDot color = SvgElements.svg
       , SvgAttributes.fill $ SvgAttributes.Named color
       ]
   ]
+
+svgMenu :: HH.PlainHTML
+svgMenu = SvgElements.svg
+  [ SvgAttributes.id "hamburger"
+  , SvgAttributes.width 32.0
+  , SvgAttributes.height 32.0
+  ]
+  let
+    line c y =
+      [ SvgAttributes.classes [ wrap "line", wrap c ]
+      , SvgAttributes.x1 4.0
+      , SvgAttributes.y1 y
+      , SvgAttributes.x2 28.0
+      , SvgAttributes.y2 y
+      , SvgAttributes.stroke $ SvgAttributes.Named "dimgrey"
+      , SvgAttributes.strokeWidth 4.0
+      , SvgAttributes.strokeLineCap LineCapRound
+      ]
+  in
+    [ SvgElements.line $ line "top" 8.0
+    , SvgElements.line $ line "middle" 16.0
+    , SvgElements.line $ line "bottom" 24.0
+    ]
 
 appComponent
   :: forall m

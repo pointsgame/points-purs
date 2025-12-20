@@ -9,16 +9,34 @@
         display: none;
       }
 
-      #menu:hover #menu-list {
-        display: block;
+      #hamburger {
+        .line {
+          transition: transform 0.4s, opacity 0.4s;
+        }
+        .top {
+          transform-origin: 16px 8px;
+        }
+        .bottom {
+          transform-origin: 16px 24px;
+        }
       }
 
-      #menu-btn {
-        background-color: #fff;
-      }
+      #menu:hover {
+        #menu-list {
+          display: block;
+        }
 
-      #menu:hover #menu-btn {
-        background-color: #f7f7f7;
+        #hamburger {
+          .top {
+            transform: translateY(8px) rotate(45deg);
+          }
+          .middle {
+            opacity: 0;
+          }
+          .bottom {
+            transform: translateY(-8px) rotate(-45deg);
+          }
+        }
       }
 
       .menu-item {
