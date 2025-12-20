@@ -155,11 +155,12 @@ draw
       stroke context
     --Rendering little surroundings.
     setGlobalAlpha context fillingAlpha
+    let reversedFields = NonEmptyList.reverse fields
     when fullFill
       $ for_
           ( List.zip
-              (NonEmptyList.toList $ NonEmptyList.reverse fields)
-              (map (List.head <<< Field.moves) $ NonEmptyList.tail $ NonEmptyList.reverse fields)
+              (NonEmptyList.toList reversedFields)
+              (map (List.head <<< Field.moves) $ NonEmptyList.tail reversedFields)
           )
           \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
             setFillStyle context $ if player == Player.Red then redColor else blackColor
@@ -200,7 +201,7 @@ draw
                 $ polygon context
                 $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.sw pos) : List.Nil
     --Rendering surroundings.
-    for_ (NonEmptyList.reverse fields) \field ->
+    for_ reversedFields \field ->
       when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
         setFillStyle context $ if Field.lastSurroundPlayer field == Player.Red then redColor else blackColor
         polygon context $ map fromPos $ NonEmptyList.toList chain
