@@ -446,6 +446,7 @@ svgMenu = SvgElements.svg
   [ SvgAttributes.id "hamburger"
   , SvgAttributes.width 32.0
   , SvgAttributes.height 32.0
+  , HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
   ]
   let
     line c y =
