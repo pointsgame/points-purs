@@ -6,7 +6,9 @@
     <link rel="icon" type="image/svg+xml" href="logo.svg">
     <style type="text/css">
       #menu-list {
-        display: none;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s ease 0.1s, visibility 0s ease 0.4s;
       }
 
       #hamburger {
@@ -23,7 +25,9 @@
 
       #menu:hover {
         #menu-list {
-          display: block;
+          visibility: visible;
+          opacity: 1;
+          transition: opacity 0.3s, visibility 0s;
         }
 
         #hamburger {
