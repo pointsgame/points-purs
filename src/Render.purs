@@ -16,7 +16,7 @@ import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Graphics.Canvas (Composite(..), Context2D, arc, beginPath, clearRect, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setGlobalCompositeOperation, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
 
 type DrawSettings =
@@ -125,6 +125,7 @@ draw
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
     --Rendering background.
+    setGlobalCompositeOperation context SourceOver
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
     --Rendering grig.
@@ -154,6 +155,7 @@ draw
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 3.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       stroke context
     --Rendering little surroundings.
+    setGlobalCompositeOperation context Lighter
     setGlobalAlpha context fillingAlpha
     when fullFill
       $ for_
