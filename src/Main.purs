@@ -327,10 +327,13 @@ signinComponent =
               HH.div
                 [ HCSS.style do
                     traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                    CSS.marginBottom $ CSS.px 5.0
                 ]
                 [ HH.button
                     [ HP.class_ $ wrap "menu-item"
-                    , HCSS.style buttonStyle
+                    , HCSS.style do
+                        buttonStyle
+                        CSS.width $ CSS.pct 100.0
                     , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn)
                     ]
                     [ HH.text "Sign in" ]
@@ -339,12 +342,14 @@ signinComponent =
               HH.div
                 [ HCSS.style do
                     traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+                    CSS.marginBottom $ CSS.px 5.0
                 ]
                 [ HH.input
                     [ HP.id "test-name"
                     , HCSS.style do
-                        CSS.width $ CSS.rem 4.0
-                        CSS.margin (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+                        CSS.width $ CSS.pct 100.0
+                        CSS.boxSizing $ CSS.fromString "border-box"
+                        CSS.marginBottom $ CSS.px 5.0
                     , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
                         maybeName <- liftEffect do
                           window <- HTML.window
@@ -356,12 +361,14 @@ signinComponent =
                     ]
                 ]
           , HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.alignItems CSSCommon.center
-                  CSS.padding (CSS.px 2.0) (CSS.px 0.0) (CSS.px 2.0) (CSS.px 0.0)
+              [ HCSS.style $ CSS.display CSS.flex
               ]
-              [ HH.input [ HP.id "remember-me", HP.type_ HP.InputCheckbox, HP.checked true ]
+              [ HH.input
+                  [ HP.id "remember-me"
+                  , HP.type_ HP.InputCheckbox
+                  , HP.checked true
+                  , HCSS.style $ CSS.margin (CSS.px 0.0) (CSS.px 3.0) (CSS.px 0.0) (CSS.px 0.0)
+                  ]
               , HH.label
                   [ HP.for "remember-me"
                   , HCSS.style $ do
