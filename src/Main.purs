@@ -11,7 +11,7 @@ import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
-import Control.Monad.Except (runExcept)
+import Control.Monad.Except (Except, runExcept)
 import Control.Monad.Maybe.Trans (runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Countdown (countdown)
@@ -43,7 +43,8 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
-import Foreign (readString)
+import Foreign (Foreign, ForeignError, readString)
+import Foreign.Index ((!))
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -82,7 +83,7 @@ testBuild = false
 
 foreign import setCookie :: String -> Effect Unit
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
-foreign import eventData :: forall d. Event -> d
+foreign import eventData :: Event -> Foreign
 
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
@@ -816,6 +817,14 @@ checkRedirect window = do
       Window.close window
       pure true
 
+type ChildMessage = { code :: String, state :: String }
+
+readChildMessage :: Foreign -> Except (NonEmptyList.NonEmptyList ForeignError) ChildMessage
+readChildMessage value = do
+  code <- value ! "code" >>= readString
+  state <- value ! "state" >>= readString
+  pure { code, state }
+
 main :: Effect Unit
 main = do
   window <- HTML.window
@@ -824,9 +833,9 @@ main = do
     let connectionEffect = WS.create "ws://127.0.0.1:8080" []
     connection <- connectionEffect
     connectionRef <- Ref.new connection
-    listener <- EET.eventListener \event -> do
-      let data' = eventData event
-      wsSender connectionRef $ Message.AuthRequest data'.code data'.state
+    listener <- EET.eventListener \event ->
+      for_ (runExcept $ readChildMessage $ eventData event) $ \message ->
+        wsSender connectionRef $ Message.AuthRequest message.code message.state
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
     HA.runHalogenAff do
       body <- HA.awaitBody
