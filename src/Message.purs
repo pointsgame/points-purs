@@ -180,6 +180,7 @@ data Response
   | PutPointResponse GameId Move Instant TimeLeft
   | DrawResponse GameId Color
   | GameResultResponse GameId GameResult
+  | NicknameChanged PlayerId Player
 
 derive instance Generic Response _
 
@@ -218,4 +219,5 @@ instance DecodeJson Response where
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
       "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player"
       "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "gameResult"
+      "NicknameChanged" -> NicknameChanged <$> obj .: "playerId" <*> obj .: "player"
       other -> Left $ UnexpectedValue $ encodeJson other
