@@ -35,7 +35,7 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff)
-import Effect.Class (liftEffect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
 import Effect.Now as Now
@@ -59,6 +59,7 @@ import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Player as Player
 import Type.Proxy (Proxy(..))
+import Web.DOM.DOMTokenList as DOMTokenList
 import Web.DOM.Element as Element
 import Web.DOM.MutationObserver as MutationObserver
 import Web.DOM.NonElementParentNode (getElementById)
@@ -292,6 +293,28 @@ createGameComponent =
 _signin :: Proxy "signin"
 _signin = Proxy
 
+menuOnClick :: forall e. MonadEffect e => e Unit
+menuOnClick = liftEffect $ do
+  window <- HTML.window
+  document <- Window.document window
+  void $ runMaybeT $ do
+    menu <- wrap $ getElementById "menu" (Document.toNonElementParentNode document)
+    classes <- lift $ Element.classList menu
+    contains <- lift $ DOMTokenList.contains classes "closed"
+    if contains then
+      lift $ DOMTokenList.remove classes "closed"
+    else
+      lift $ DOMTokenList.add classes "closed"
+
+menuOnMouseLeave :: forall e. MonadEffect e => e Unit
+menuOnMouseLeave = liftEffect $ do
+  window <- HTML.window
+  document <- Window.document window
+  void $ runMaybeT $ do
+    menu <- wrap $ getElementById "menu" (Document.toNonElementParentNode document)
+    classes <- lift $ Element.classList menu
+    lift $ DOMTokenList.remove classes "closed"
+
 data SignInOutput = SignIn Boolean | SignInTest String
 
 signinComponent
@@ -300,18 +323,16 @@ signinComponent
   => H.Component query input SignInOutput m
 signinComponent =
   Hooks.component \{ outputToken } _ -> Hooks.do
-    let
-      rememebrMeEff =
-        liftEffect $ do
-          window <- HTML.window
-          document <- Window.document window
-          maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode document)
-          Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
     Hooks.pure $ HH.div
       [ HP.id "menu"
       , HCSS.style $ CSS.position $ CSS.relative
       ]
-      [ HH.fromPlainHTML svgMenu
+      [ HH.div
+          [ HCSS.style $ CSS.cursor CSSCursor.pointer
+          , HE.onClick $ const menuOnClick
+          , HE.onMouseLeave $ const menuOnMouseLeave
+          ]
+          [ HH.fromPlainHTML svgMenu ]
       , HH.div
           [ HP.id "menu-list"
           , HCSS.style do
@@ -334,7 +355,16 @@ signinComponent =
                     , HCSS.style do
                         buttonStyle
                         CSS.width $ CSS.pct 100.0
-                    , HE.onClick $ const $ rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn)
+                    , HE.onClick $ const $
+                        let
+                          rememebrMeEff =
+                            liftEffect $ do
+                              window <- HTML.window
+                              document <- Window.document window
+                              maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode document)
+                              Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
+                        in
+                          rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn)
                     ]
                     [ HH.text "Sign in" ]
                 ]
@@ -396,15 +426,22 @@ menuComponent =
       [ HP.id "menu"
       , HCSS.style $ CSS.position $ CSS.relative
       ]
-      [ HH.label
-          [ HCSS.style do
-              CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
-              CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-              traverse_ CSS.color $ CSS.fromHexString "#333"
+      [ HH.div
+          [ HCSS.style $ CSS.cursor CSSCursor.pointer
+          , HE.onClick $ const menuOnClick
+          , HE.onMouseLeave $ const menuOnMouseLeave
           ]
-          [ HH.text player.nickname
+          [ HH.label
+              [ HCSS.style do
+                  CSS.cursor CSSCursor.pointer
+                  CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+                  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+                  traverse_ CSS.color $ CSS.fromHexString "#333"
+              ]
+              [ HH.text player.nickname
+              ]
+          , HH.fromPlainHTML svgMenu
           ]
-      , HH.fromPlainHTML svgMenu
       , HH.div
           [ HP.id "menu-list"
           , HCSS.style do
