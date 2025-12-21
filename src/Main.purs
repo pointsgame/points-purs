@@ -389,9 +389,15 @@ menuComponent =
       [ HP.id "menu"
       , HCSS.style $ CSS.position $ CSS.relative
       ]
-      [ HH.button
-          [ HP.id "menu-btn", HCSS.style buttonStyle ]
-          [ HH.text player.nickname ]
+      [ HH.label
+          [ HCSS.style do
+              CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+              CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+              traverse_ CSS.color $ CSS.fromHexString "#333"
+          ]
+          [ HH.text player.nickname
+          ]
+      , HH.fromPlainHTML svgMenu
       , HH.div
           [ HP.id "menu-list"
           , HCSS.style do
