@@ -499,6 +499,8 @@ signinComponent =
               traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
               CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
               CSS.zIndex 1
+              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
           ] $
           [ if not testBuild then
               HH.div
@@ -608,6 +610,8 @@ menuComponent =
               traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
               CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
               CSS.zIndex 1
+              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
           ]
           [ HH.div_
               [ HH.button
@@ -985,7 +989,7 @@ main = do
   window <- HTML.window
   redirect <- checkRedirect window
   unless redirect do
-    let connectionEffect = WS.create "ws://127.0.0.1:8080" []
+    let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
     connection <- connectionEffect
     connectionRef <- Ref.new connection
     listener <- EET.eventListener \event ->
