@@ -3,16 +3,18 @@ module Main where
 import Prelude
 
 import CSS as CSS
+import CSS.Box as CSSBox
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
 import CSS.Overflow as CSSOverflow
+import CSS.Text.Transform as CSSTextTransform
 import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
 import Control.Monad.Except (Except, runExcept)
-import Control.Monad.Maybe.Trans (runMaybeT)
+import Control.Monad.Maybe.Trans (MaybeT(..), mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Countdown (countdown)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
@@ -27,6 +29,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
+import Data.NonEmpty as NonEmpty
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -254,40 +257,192 @@ createGameComponent
   => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) CreateGameOutput m
 createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
+    let
+      -- check if current user has an open game
+      existingGame = case activePlayerId of
+        Maybe.Just pid -> Array.find (\(Tuple _ { playerId }) -> playerId == pid) (Map.toUnfoldable openGames)
+        Maybe.Nothing -> Maybe.Nothing
+
+      -- Calculate display values based on whether we are viewing an existing game or creating a new one
+      displayState = case existingGame of
+        Maybe.Just (Tuple _ openGame) ->
+          let
+            totalSeconds = openGame.config.time.total
+          in
+            { width: show openGame.config.size.width
+            , height: show openGame.config.size.height
+            , minutes: show (totalSeconds / 60)
+            , seconds: show (totalSeconds `mod` 60)
+            , increment: show openGame.config.time.increment
+            , disabled: true
+            }
+        Maybe.Nothing ->
+          { width: "39"
+          , height: "32"
+          , minutes: "5"
+          , seconds: "0"
+          , increment: "5"
+          , disabled: false
+          }
+
+      borderColor = CSS.fromHexString "#dee2e6"
+      primaryBtnColor = CSS.fromHexString "#e9ecef"
+
+      -- Render Helper for Table Rows
+      renderRow id label value minVal maxVal isDisabled =
+        HH.tr_
+          [ HH.td
+              [ HCSS.style do
+                  CSS.fontSize (CSS.px 14.0)
+                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
+              ]
+              [ HH.text label ]
+          , HH.td
+              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HH.input
+                  [ HP.id id
+                  , HP.type_ HP.InputNumber
+                  , HP.value value
+                  , HP.min minVal
+                  , HP.max maxVal
+                  , HP.disabled isDisabled
+                  , HCSS.style do
+                      CSS.width (CSS.px 60.0)
+                      CSS.padding (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
+                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                      CSSTextAlign.textAlign CSSTextAlign.center
+                  ]
+              ]
+          ]
+
+      -- Render Section Header
+      renderHeader title =
+        HH.h3
+          [ HCSS.style do
+              CSS.marginTop (CSS.px 0.0)
+              CSS.fontSize (CSS.rem 0.9)
+              traverse_ CSS.color $ CSS.fromHexString "#666"
+              CSS.textTransform CSSTextTransform.uppercase
+              CSS.letterSpacing (CSS.px 1.0)
+              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) borderColor
+              CSS.paddingBottom (CSS.px 10.0)
+              CSS.marginBottom (CSS.px 15.0)
+          ]
+          [ HH.text title ]
+
     Hooks.pure $ HH.div
       [ HCSS.style do
           CSS.width $ CSS.pct 100.0
           CSS.height $ CSS.pct 100.0
           CSS.position CSS.relative
+          CSS.display CSS.flex
+          CSS.justifyContent CSSCommon.center
+          CSS.alignItems CSSCommon.center
+          CSS.backgroundColor CSS.white
       ]
       [ HH.div
           [ HCSS.style do
-              CSS.position CSS.absolute
-              CSS.top $ CSS.pct 50.0
-              CSS.left $ CSS.pct 50.0
-              CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
+              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
+              CSS.backgroundColor CSS.white
+              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
           ]
-          [ if Maybe.isJust activePlayerId then
-              case Array.find (\(Tuple _ { playerId }) -> Maybe.Just playerId == activePlayerId) $ Map.toUnfoldable openGames of
+          [ -- Config Grid
+            HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.marginBottom (CSS.px 30.0)
+              ]
+              [ -- Column 1: Board Size
+                HH.div
+                  [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
+                  [ renderHeader "Board Size"
+                  , HH.table_
+                      [ renderRow "width" "Width" displayState.width 10.0 50.0 displayState.disabled
+                      , renderRow "height" "Height" displayState.height 10.0 50.0 displayState.disabled
+                      ]
+                  ]
+              , -- Column 2: Time Control
+                HH.div_
+                  [ renderHeader "Time Control"
+                  , HH.table_
+                      [ renderRow "minutes" "Minutes" displayState.minutes 0.0 239.0 displayState.disabled
+                      , renderRow "seconds" "Seconds" displayState.seconds 0.0 59.0 displayState.disabled
+                      , renderRow "increment" "Increment" displayState.increment 0.0 60.0 displayState.disabled
+                      ]
+                  ]
+              ]
+          , -- Button Group
+            HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.justifyContent CSSCommon.center
+                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) borderColor
+                  CSS.paddingTop (CSS.px 20.0)
+              ]
+              case existingGame of
                 Maybe.Nothing ->
-                  HH.button
-                    [ HCSS.style buttonStyle
-                    , HE.onClick $ const $ Hooks.raise outputToken $ CreateGame { size: { width: 39, height: 32 }, time: { total: 300, increment: 5 } }
-                    ]
-                    [ HH.text "Create game" ]
+                  [ HH.button
+                      [ HP.disabled $ Maybe.isNothing activePlayerId
+                      , HP.title $ if Maybe.isNothing activePlayerId then "You must be signed in to create a game" else ""
+                      , HCSS.style do
+                          traverse_ CSS.backgroundColor primaryBtnColor
+                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
+                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                          CSS.cursor CSSCursor.pointer
+                          CSS.fontWeight CSS.bold
+                          CSS.marginRight (CSS.px 15.0)
+                      , HE.onClick $ const $ do
+                          window <- liftEffect $ HTML.window
+                          document <- liftEffect $ Window.document window
+                          let
+                            document' = Document.toNonElementParentNode document
+                            getInput id = mapMaybeT liftEffect $ do
+                              input <- wrap $ map (_ >>= HTMLInputElement.fromElement) $ getElementById id document'
+                              value <- lift $ HTMLInputElement.value input
+                              MaybeT $ pure $ Int.fromString value
+                          void $ runMaybeT $ do
+                            width <- getInput "width"
+                            height <- getInput "height"
+                            minutes <- getInput "minutes"
+                            seconds <- getInput "seconds"
+                            increment <- getInput "increment"
+                            let totalTime = (minutes * 60) + seconds
+                            lift $ when (totalTime >= 30) $ Hooks.raise outputToken $ CreateGame
+                              { size: { width, height }
+                              , time: { total: totalTime, increment }
+                              }
+                      ]
+                      [ HH.text "Create game" ]
+                  , HH.button
+                      [ HP.disabled true
+                      , HP.title "Not implemented yet, stay tuned!"
+                      , HCSS.style do
+                          traverse_ CSS.backgroundColor primaryBtnColor
+                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
+                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                          CSS.cursor CSSCursor.pointer
+                          CSS.fontWeight CSS.bold
+                      ]
+                      [ HH.text "Local game" ]
+                  ]
                 Maybe.Just (Tuple gameId _) ->
-                  HH.button
-                    [ HCSS.style buttonStyle
-                    , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
-                    ]
-                    [ HH.text "Cancel game" ]
-            else
-              HH.label
-                [ HCSS.style do
-                    CSS.fontSize (CSS.rem 2.0)
-                    traverse_ CSS.color $ CSS.fromHexString "#333"
-                ]
-                [ HH.text "Sign in to play!" ]
+                  [ HH.button
+                      [ HCSS.style do
+                          traverse_ CSS.backgroundColor primaryBtnColor
+                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
+                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                          CSS.cursor CSSCursor.pointer
+                          CSS.fontWeight CSS.bold
+                      , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
+                      ]
+                      [ HH.text "Cancel game" ]
+                  ]
           ]
       ]
 
