@@ -727,7 +727,7 @@ appComponent =
                 ( \fields move ->
                     Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
                 )
-                (NonEmptyList.singleton $ Field.emptyField 39 32)
+                (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
                 moves
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
