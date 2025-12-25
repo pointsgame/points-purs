@@ -90,7 +90,6 @@ foreign import eventData :: Event -> Foreign
 refresh :: Effect Unit
 refresh = HTML.window >>= Window.location >>= Location.reload
 
--- TODO: refresh on error: https://stackoverflow.com/questions/14787480/page-refresh-in-case-of-javascript-errors
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
 wsProducer socketRef socketEffect = CRA.produce \emitter ->
   let
@@ -257,7 +256,7 @@ createGameComponent
 createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
     let
-      -- check if current user has an open game
+      -- Check if current user has an open game
       existingGame = case activePlayerId of
         Maybe.Just pid -> Array.find (\(Tuple _ { playerId }) -> playerId == pid) (Map.toUnfoldable openGames)
         Maybe.Nothing -> Maybe.Nothing
