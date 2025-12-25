@@ -19,7 +19,6 @@ import Control.Monad.Trans.Class (lift)
 import Countdown (countdown)
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
-import Data.DateTime.Instant (Instant)
 import Data.DateTime.Instant as Instant
 import Data.Either as Either
 import Data.Foldable (for_, traverse_)
@@ -634,7 +633,6 @@ type AppInput =
   , players :: Message.Players
   , openGames :: Message.OpenGames
   , games :: Message.Games
-  , now :: Instant
   }
 
 svgDot :: String -> HH.PlainHTML
@@ -687,12 +685,6 @@ appComponent =
     players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
     activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
-    now /\ nowId <- Hooks.useState input.now
-
-    Hooks.captures {} Hooks.useTickEffect do
-      newNow <- liftEffect $ Now.now
-      Hooks.put nowId newNow
-      pure Maybe.Nothing
 
     Hooks.useLifecycleEffect do
       let
@@ -834,17 +826,17 @@ appComponent =
                     CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
                     traverse_ CSS.color $ CSS.fromHexString "#333"
                 ] $ case activeGame of
-                Maybe.Just (_ /\ _ /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
+                Maybe.Just (_ /\ _ /\ redPlayer /\ blackPlayer /\ _ /\ timeLeft /\ fields) ->
                   let
                     nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
                     redTicking = nextPlayer == Player.Red
                   in
-                    [ HH.fromPlainHTML $ countdown redTicking now puttingTime (Milliseconds $ Int.toNumber timeLeft.red)
+                    [ HH.fromPlainHTML $ countdown redTicking $ Milliseconds $ Int.toNumber timeLeft.red
                     , HH.fromPlainHTML $ svgDot "red"
                     , HH.label_
                         [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname ]
                     , HH.fromPlainHTML $ svgDot "black"
-                    , HH.fromPlainHTML $ countdown (not redTicking) now puttingTime (Milliseconds $ Int.toNumber timeLeft.black)
+                    , HH.fromPlainHTML $ countdown (not redTicking) $ Milliseconds $ Int.toNumber timeLeft.black
                     ]
                 Maybe.Nothing -> []
             , HH.div
@@ -1000,9 +992,8 @@ main = do
       body <- HA.awaitBody
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
         input <- CR.await >>= case _ of
-          Message.InitResponse playerId players openGames games -> do
-            now <- liftEffect $ Now.now
-            pure { playerId, players, openGames, games, now }
+          Message.InitResponse playerId players openGames games ->
+            pure { playerId, players, openGames, games }
           other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
         io <- lift $ runUI appComponent input body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef

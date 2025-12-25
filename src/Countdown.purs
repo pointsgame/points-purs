@@ -3,8 +3,6 @@ module Countdown where
 import Prelude
 
 import CSS as CSS
-import Data.DateTime.Instant (Instant)
-import Data.DateTime.Instant as Instant
 import Data.Int as Int
 import Data.MediaType (MediaType(..))
 import Data.Newtype (unwrap, wrap)
@@ -14,16 +12,14 @@ import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Elements as HEl
 import Halogen.HTML.Properties as HP
 
-countdown :: Boolean -> Instant -> Instant -> Milliseconds -> HH.PlainHTML
-countdown active now startTime duration =
-  if active then activeCountdown now startTime duration else idleCountdown duration
+countdown :: Boolean -> Milliseconds -> HH.PlainHTML
+countdown active duration =
+  if active then activeCountdown duration else idleCountdown duration
 
-activeCountdown :: Instant -> Instant -> Milliseconds -> HH.PlainHTML
-activeCountdown now startTime duration =
+activeCountdown :: Milliseconds -> HH.PlainHTML
+activeCountdown duration =
   let
-    timeSkew :: Milliseconds
-    timeSkew = Instant.diff now startTime
-    millisLeft = Int.round $ unwrap duration - unwrap timeSkew
+    millisLeft = Int.round $ unwrap duration
     secsLeft = millisLeft / 1000
     minsLeft = secsLeft / 60
     secsRest = secsLeft `mod` 60
