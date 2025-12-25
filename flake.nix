@@ -31,8 +31,8 @@
       in {
         devShell = pkgs.mkShell rec {
           buildInputs = with pkgs; [
-            nodePackages.purescript-language-server
-            nodePackages.purs-tidy
+            purescript-language-server
+            purs-tidy
             purescript
             spago-unstable
             purs-backend-es
