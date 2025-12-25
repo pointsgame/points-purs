@@ -247,7 +247,10 @@ buttonStyle = do
 _createGame :: Proxy "createGame"
 _createGame = Proxy
 
-data CreateGameOutput = CreateGame Message.GameConfig | CloseGame Message.GameId
+data CreateGameOutput
+  = CreateGame Message.GameConfig
+  | CreateLocalGame Message.GameConfig
+  | CloseGame Message.GameId
 
 createGameComponent
   :: forall query m
@@ -416,15 +419,33 @@ createGameComponent =
                       ]
                       [ HH.text "Create game" ]
                   , HH.button
-                      [ HP.disabled true
-                      , HP.title "Not implemented yet, stay tuned!"
-                      , HCSS.style do
+                      [ HCSS.style do
                           traverse_ CSS.backgroundColor primaryBtnColor
                           traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
                           CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
                           CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                           CSS.cursor CSSCursor.pointer
                           CSS.fontWeight CSS.bold
+                      , HE.onClick $ const $ do
+                          window <- liftEffect $ HTML.window
+                          document <- liftEffect $ Window.document window
+                          let
+                            document' = Document.toNonElementParentNode document
+                            getInput id = mapMaybeT liftEffect $ do
+                              input <- wrap $ map (_ >>= HTMLInputElement.fromElement) $ getElementById id document'
+                              value <- lift $ HTMLInputElement.value input
+                              MaybeT $ pure $ Int.fromString value
+                          void $ runMaybeT $ do
+                            width <- getInput "width"
+                            height <- getInput "height"
+                            minutes <- getInput "minutes"
+                            seconds <- getInput "seconds"
+                            increment <- getInput "increment"
+                            let totalTime = (minutes * 60) + seconds
+                            lift $ Hooks.raise outputToken $ CreateLocalGame
+                              { size: { width, height }
+                              , time: { total: totalTime, increment }
+                              }
                       ]
                       [ HH.text "Local game" ]
                   ]
@@ -859,7 +880,18 @@ appComponent =
                     , HH.fromPlainHTML $ svgDot "black"
                     , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
                     ]
-                _ -> []
+                AppStateLocalGame game ->
+                  let
+                    nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
+                    redTicking = nextPlayer == Player.Red
+                  in
+                    [ HH.fromPlainHTML $ countdown redTicking game.timeLeft.red
+                    , HH.fromPlainHTML $ svgDot "red"
+                    , HH.label_ [ HH.text "Player 1 : Player 2" ]
+                    , HH.fromPlainHTML $ svgDot "black"
+                    , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
+                    ]
+                AppStateEmpty -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
@@ -956,7 +988,32 @@ appComponent =
                                   $ NonEmptyList.head game.fields
                               }
                             Hooks.raise outputToken $ Message.PutPointRequest game.gameId { x, y }
-                    _ ->
+                    AppStateLocalGame game ->
+                      let
+                        nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
+                      in
+                        HH.slot
+                          _field
+                          unit
+                          fieldComponent
+                          { fields: game.fields, pointer: true }
+                          \(Click (Tuple x y)) -> do
+                            now' <- liftEffect $ Now.now
+                            let
+                              elapsed :: Milliseconds
+                              elapsed = Instant.diff now' game.puttingTime
+                              diff = unwrap elapsed
+                              increment = Int.toNumber game.config.time.increment * 1000.0
+                            Hooks.put stateId $ AppStateLocalGame game
+                              { puttingTime = now'
+                              , timeLeft = case nextPlayer of
+                                  Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
+                                  Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
+                              , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
+                                  $ Field.putPoint (Tuple x y) nextPlayer
+                                  $ NonEmptyList.head game.fields
+                              }
+                    AppStateEmpty ->
                       HH.slot
                         _createGame
                         unit
@@ -964,6 +1021,14 @@ appComponent =
                         (activePlayerId /\ openGames)
                         case _ of
                           CreateGame config -> Hooks.raise outputToken $ Message.CreateRequest config
+                          CreateLocalGame config -> do
+                            now <- liftEffect $ Now.now
+                            Hooks.put stateId $ AppStateLocalGame
+                              { config
+                              , puttingTime: now
+                              , timeLeft: { red: Milliseconds $ Int.toNumber $ config.time.total * 1000, black: Milliseconds $ Int.toNumber $ config.time.total * 1000 }
+                              , fields: NonEmptyList.singleton $ Field.emptyField config.size.width config.size.height
+                              }
                           CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
                 ]
             ]
