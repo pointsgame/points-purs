@@ -672,6 +672,24 @@ svgMenu = SvgElements.svg
     , SvgElements.line $ line "bottom" 24.0
     ]
 
+data AppState
+  = AppStateEmpty
+  | AppStateGame
+      { gameId :: Message.GameId
+      , config :: Message.GameConfig
+      , redPlayer :: Message.Player
+      , blackPlayer :: Message.Player
+      , puttingTime :: Instant.Instant
+      , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
+      , fields :: NonEmptyList.NonEmptyList Field.Field
+      }
+  | AppStateLocalGame
+      { config :: Message.GameConfig
+      , puttingTime :: Instant.Instant
+      , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
+      , fields :: NonEmptyList.NonEmptyList Field.Field
+      }
+
 appComponent
   :: forall m
    . MonadAff m
@@ -683,7 +701,7 @@ appComponent =
     games /\ gamesId <- Hooks.useState input.games
     players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
-    activeGame /\ activeGameId <- Hooks.useState Maybe.Nothing
+    state /\ stateId <- Hooks.useState AppStateEmpty
 
     Hooks.useLifecycleEffect do
       let
@@ -723,12 +741,20 @@ appComponent =
               watchingGameId
           Message.GameInitResponse gameId game moves initTime drawOffer timeLeft ->
             if Maybe.Just gameId == watchingGameId then
-              Hooks.put activeGameId $ Maybe.Just $ gameId /\ game.config /\ game.redPlayer /\ game.blackPlayer /\ initTime /\ timeLeft /\ Array.foldl
-                ( \fields move ->
-                    Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
-                )
-                (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
-                moves
+              Hooks.put stateId $ AppStateGame
+                { gameId
+                , config: game.config
+                , redPlayer: game.redPlayer
+                , blackPlayer: game.blackPlayer
+                , puttingTime: initTime
+                , timeLeft: { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
+                , fields: Array.foldl
+                    ( \fields move ->
+                        Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player) $ NonEmptyList.head fields
+                    )
+                    (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
+                    moves
+                }
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
           Message.AuthUrlResponse url -> liftEffect $ do
@@ -751,19 +777,15 @@ appComponent =
             Hooks.modify_ gamesId $ Map.insert gameId game
             when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
           Message.PutPointResponse gameId move puttingTime timeLeft ->
-            case activeGame of
-              Maybe.Just (activeGameId' /\ config /\ redPlayer /\ blackPlayer /\ _ /\ _ /\ fields) | gameId == activeGameId' ->
-                Hooks.put activeGameId
-                  $ Maybe.Just
-                  $ (/\) activeGameId'
-                  $ (/\) config
-                  $ (/\) redPlayer
-                  $ (/\) blackPlayer
-                  $ (/\) puttingTime
-                  $ (/\) timeLeft
-                  $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
-                  $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
-                  $ NonEmptyList.head fields
+            case state of
+              AppStateGame game | game.gameId == gameId ->
+                Hooks.put stateId $ AppStateGame game
+                  { puttingTime = puttingTime
+                  , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
+                  , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
+                      $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
+                      $ NonEmptyList.head game.fields
+                  }
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
           Message.DrawResponse _ _ ->
@@ -798,7 +820,7 @@ appComponent =
                 , HE.onClick $ const do
                     Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                     Hooks.put watchingGameIdId Maybe.Nothing
-                    Hooks.put activeGameId Maybe.Nothing
+                    Hooks.put stateId AppStateEmpty
                 ]
                 [ HH.img
                     [ HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
@@ -824,20 +846,20 @@ appComponent =
                     CSS.left (CSS.pct 50.0)
                     CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
                     traverse_ CSS.color $ CSS.fromHexString "#333"
-                ] $ case activeGame of
-                Maybe.Just (_ /\ _ /\ redPlayer /\ blackPlayer /\ _ /\ timeLeft /\ fields) ->
+                ] $ case state of
+                AppStateGame game ->
                   let
-                    nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
+                    nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
                     redTicking = nextPlayer == Player.Red
                   in
-                    [ HH.fromPlainHTML $ countdown redTicking $ Milliseconds $ Int.toNumber timeLeft.red
+                    [ HH.fromPlainHTML $ countdown redTicking game.timeLeft.red
                     , HH.fromPlainHTML $ svgDot "red"
                     , HH.label_
-                        [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname ]
+                        [ HH.text $ game.redPlayer.nickname <> " : " <> game.blackPlayer.nickname ]
                     , HH.fromPlainHTML $ svgDot "black"
-                    , HH.fromPlainHTML $ countdown (not redTicking) $ Milliseconds $ Int.toNumber timeLeft.black
+                    , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
                     ]
-                Maybe.Nothing -> []
+                _ -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
@@ -903,43 +925,38 @@ appComponent =
                     CSS.flexGrow 2.0
                     CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                 ]
-                [ case activeGame of
-                    Maybe.Just (gameId /\ config /\ redPlayer /\ blackPlayer /\ puttingTime /\ timeLeft /\ fields) ->
+                [ case state of
+                    AppStateGame game ->
                       let
-                        game = Map.lookup gameId games
-                        nextPlayer = Field.nextPlayer $ NonEmptyList.head fields
+                        game' = Map.lookup game.gameId games
+                        nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
                         pointer = Maybe.isJust activePlayerId &&
-                          ( map _.redPlayerId game == activePlayerId && nextPlayer == Player.Red ||
-                              map _.blackPlayerId game == activePlayerId && nextPlayer == Player.Black
+                          ( map _.redPlayerId game' == activePlayerId && nextPlayer == Player.Red ||
+                              map _.blackPlayerId game' == activePlayerId && nextPlayer == Player.Black
                           )
                       in
                         HH.slot
                           _field
                           unit
                           fieldComponent
-                          { fields, pointer }
+                          { fields: game.fields, pointer }
                           \(Click (Tuple x y)) -> when pointer do
                             now' <- liftEffect $ Now.now
                             let
                               elapsed :: Milliseconds
-                              elapsed = Instant.diff now' puttingTime
-                              diff = Int.ceil (unwrap elapsed)
-                            Hooks.put activeGameId
-                              $ Maybe.Just
-                              $ (/\) gameId
-                              $ (/\) config
-                              $ (/\) redPlayer
-                              $ (/\) blackPlayer
-                              $ (/\) now'
-                              $ (/\)
-                                  { red: max 0 (timeLeft.red - if nextPlayer == Player.Red then diff else 0)
-                                  , black: max 0 (timeLeft.black - if nextPlayer == Player.Black then diff else 0)
-                                  }
-                              $ Maybe.maybe fields (_ `NonEmptyList.cons` fields)
-                              $ Field.putPoint (Tuple x y) nextPlayer
-                              $ NonEmptyList.head fields
-                            Hooks.raise outputToken $ Message.PutPointRequest gameId { x, y }
-                    Maybe.Nothing ->
+                              elapsed = Instant.diff now' game.puttingTime
+                              diff = unwrap elapsed
+                            Hooks.put stateId $ AppStateGame game
+                              { puttingTime = now'
+                              , timeLeft = case nextPlayer of
+                                  Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff), black: game.timeLeft.black }
+                                  Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) }
+                              , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
+                                  $ Field.putPoint (Tuple x y) nextPlayer
+                                  $ NonEmptyList.head game.fields
+                              }
+                            Hooks.raise outputToken $ Message.PutPointRequest game.gameId { x, y }
+                    _ ->
                       HH.slot
                         _createGame
                         unit
