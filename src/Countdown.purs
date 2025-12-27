@@ -53,7 +53,7 @@ activeCountdown duration =
             (CSS.key (CSS.fromString "--seconds") "60")
             (CSS.key (CSS.fromString "--seconds") "0")
           (CSS.star CSS.& CSS.byClass "minutes") CSS.& CSS.pseudo ":after" CSS.? do
-            CSS.key (CSS.fromString "counter-reset") "number calc(mod(var(--minutes), 60))"
+            CSS.key (CSS.fromString "counter-reset") "number var(--minutes)"
             CSS.animation
               (CSS.fromString "minutes-count")
               (CSS.ms (delay - 30000.0))
