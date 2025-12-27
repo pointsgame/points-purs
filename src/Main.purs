@@ -6,7 +6,10 @@ import CSS as CSS
 import CSS.Box as CSSBox
 import CSS.Common as CSSCommon
 import CSS.Cursor as CSSCursor
+import CSS.Font as CSSFont
+import CSS.FontStyle as CSSFontStyle
 import CSS.Overflow as CSSOverflow
+import CSS.Text.Overflow as CSSTextOverflow
 import CSS.Text.Transform as CSSTextTransform
 import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
@@ -21,7 +24,7 @@ import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.DateTime.Instant as Instant
 import Data.Either as Either
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (elem, for_, traverse_)
 import Data.Int as Int
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
@@ -128,6 +131,48 @@ wsProducer socketRef socketEffect = CRA.produce \emitter ->
 wsSender :: Ref WS.WebSocket -> Message.Request -> Effect Unit
 wsSender socket message = Ref.read socket >>= \s -> WS.sendString s $ stringify $ encodeJson message
 
+formatConfig :: Message.GameConfig -> HH.PlainHTML
+formatConfig config =
+  let
+    widthStr = show config.size.width
+    heightStr = show config.size.height
+    minutes = config.time.total / 60
+    seconds = config.time.total `mod` 60
+    secPad = if seconds < 10 then "0" else ""
+    timeStr = show minutes <> ":" <> secPad <> show seconds <> "+" <> show config.time.increment
+  in
+    HH.span_
+      [ HH.text $ widthStr <> "x" <> heightStr
+      , HH.br_
+      , HH.text timeStr
+      ]
+
+commonHeaderStyle :: CSS.CSS
+commonHeaderStyle = do
+  traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
+  traverse_ CSS.color $ CSS.fromHexString "#333"
+  CSS.padding (CSS.px 2.0) (CSS.px 4.0) (CSS.px 2.0) (CSS.px 4.0)
+  CSS.fontSize (CSS.rem 0.85)
+  CSS.fontWeight CSS.bold
+  CSSTextAlign.textAlign CSSTextAlign.center
+  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#ddd")
+  CSS.key (CSS.fromString "position") "sticky"
+  CSS.top (CSS.px 0.0)
+  CSS.zIndex 10
+
+nameColStyle :: CSS.CSS
+nameColStyle = do
+  CSSOverflow.overflow CSSOverflow.hidden
+  CSS.textOverflow CSSTextOverflow.ellipsis
+  CSS.key (CSS.fromString "white-space") "nowrap"
+
+metaColStyle :: CSS.CSS
+metaColStyle = do
+  CSS.fontSize (CSS.rem 0.75)
+  traverse_ CSS.color $ CSS.fromHexString "#888"
+  CSSTextAlign.textAlign CSSTextAlign.rightTextAlign
+  CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
+
 _games :: Proxy "games"
 _games = Proxy
 
@@ -140,26 +185,30 @@ gamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style do
-                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
-                traverse_ CSS.color $ CSS.fromHexString "#333"
-                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                CSSTextAlign.textAlign CSSTextAlign.center
-            ]
-            [ HH.text "Games"
-            ]
+            [ HCSS.style commonHeaderStyle ]
+            [ HH.text "Games" ]
         ] <>
           ( map
               ( \(Tuple gameId { redPlayer, blackPlayer, config }) -> HH.div
-                  [ HCSS.style do
-                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
-                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                      CSS.cursor CSSCursor.pointer
+                  [ HP.classes [ wrap "item-row", wrap "clickable" ]
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ redPlayer.nickname <> " : " <> blackPlayer.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
+                  [ HH.div
+                      [ HCSS.style nameColStyle ]
+                      [ HH.text redPlayer.nickname
+                      , HH.span
+                          [ HCSS.style do
+                              traverse_ CSS.color $ CSS.fromHexString "#bbb"
+                              CSS.padding (CSS.px 0.0) (CSS.px 2.0) (CSS.px 0.0) (CSS.px 2.0)
+                              CSS.fontStyle CSSFontStyle.Italic
+                          ]
+                          [ HH.text "vs" ]
+                      , HH.text blackPlayer.nickname
+                      ]
+                  , HH.div
+                      [ HCSS.style metaColStyle ]
+                      [ HH.fromPlainHTML $ formatConfig config ]
+                  ]
               )
               $ Map.toUnfoldableUnordered games
           )
@@ -176,27 +225,26 @@ openGamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style do
-                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
-                traverse_ CSS.color $ CSS.fromHexString "#333"
-                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                CSSTextAlign.textAlign CSSTextAlign.center
-            ]
-            [ HH.text "Open games"
-            ]
+            [ HCSS.style commonHeaderStyle ]
+            [ HH.text "Open games" ]
         ] <>
           ( map
-              ( \(Tuple gameId { player, config }) -> HH.div
-                  [ HCSS.style do
-                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
-                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                      CSS.cursor CSSCursor.pointer
+              ( \(Tuple gameId { playerId, player, config }) -> HH.div
+                  [ HP.classes
+                      if Maybe.isNothing activePlayerId || elem playerId activePlayerId then
+                        [ wrap "item-row" ]
+                      else
+                        [ wrap "item-row", wrap "clickable" ]
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
-                  [ HH.text $ player.nickname <> ", " <> show config.size.width <> "x" <> show config.size.height ]
+                  [ HH.div
+                      [ HCSS.style nameColStyle ]
+                      [ HH.text player.nickname ]
+                  , HH.div
+                      [ HCSS.style metaColStyle ]
+                      [ HH.fromPlainHTML $ formatConfig config ]
+                  ]
               )
               $ Map.toUnfoldableUnordered openGames
           )
@@ -213,24 +261,20 @@ playersComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style do
-                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
-                traverse_ CSS.color $ CSS.fromHexString "#333"
-                CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                CSSTextAlign.textAlign CSSTextAlign.center
+            [ HCSS.style commonHeaderStyle
             ]
-            [ HH.text "Players"
-            ]
+            [ HH.text "Players" ]
         ] <>
           ( map
-              ( \(Tuple _ { nickname }) -> HH.div
-                  [ HCSS.style do
-                      traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
-                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+              ( \(Tuple _ player) -> HH.div
+                  [ HP.class_ $ wrap "item-row" ]
+                  [ HH.div
+                      [ HCSS.style nameColStyle ]
+                      [ HH.text player.nickname ]
+                  , HH.div
+                      [ HCSS.style metaColStyle ]
+                      [ HH.text "1500" ]
                   ]
-                  [ HH.text nickname ]
               )
               $ Map.toUnfoldableUnordered players
           )
@@ -932,6 +976,8 @@ appComponent =
                     CSS.key (CSS.fromString "resize") "horizontal"
                     traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
                     CSSOverflow.overflow CSSOverflow.overflowAuto
+                    CSS.fontFamily [] $ CSSFont.sansSerif NonEmpty.:| []
+                    traverse_ CSS.backgroundColor $ CSS.fromHexString "#f9f9f9"
                 ]
                 [ HH.slot
                     _games
@@ -1057,9 +1103,34 @@ readChildMessage value = do
   state <- value ! "state" >>= readString
   pure { code, state }
 
+style :: HH.PlainHTML
+style = HCSS.stylesheet do
+  CSS.div CSS.& CSS.byClass "item-row" CSS.? do
+    CSS.display CSS.grid
+    CSS.key (CSS.fromString "grid-template-columns") "1fr auto"
+    CSS.key (CSS.fromString "gap") "8px"
+    CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+    traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#eee"
+    traverse_ CSS.color $ CSS.fromHexString "#444"
+    CSS.fontSize (CSS.rem 0.9)
+    CSS.alignItems CSSCommon.center
+    CSS.backgroundColor CSS.white
+  ((CSS.div CSS.& CSS.byClass "item-row") CSS.& CSS.byClass "clickable") CSS.& CSS.hover CSS.? do
+    traverse_ CSS.backgroundColor (CSS.fromHexString "#f0f7ff")
+    CSS.cursor CSSCursor.pointer
+
+styleComponent
+  :: forall query input output m
+   . MonadAff m
+  => H.Component query input output m
+styleComponent =
+  Hooks.component \_ _ -> Hooks.pure $ HH.fromPlainHTML style
+
 main :: Effect Unit
 main = do
   window <- HTML.window
+  document <- Window.document window
+  head <- Document.head document
   redirect <- checkRedirect window
   unless redirect do
     let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
@@ -1071,6 +1142,7 @@ main = do
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
     HA.runHalogenAff do
       body <- HA.awaitBody
+      traverse_ (runUI styleComponent unit) head
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
         input <- CR.await >>= case _ of
           Message.InitResponse playerId players openGames games ->
