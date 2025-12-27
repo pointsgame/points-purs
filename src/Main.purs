@@ -1144,10 +1144,14 @@ main = do
       body <- HA.awaitBody
       traverse_ (runUI styleComponent unit) head
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
-        input <- CR.await >>= case _ of
-          Message.InitResponse playerId players openGames games ->
-            pure { playerId, players, openGames, games }
-          other -> lift $ liftEffect $ Exception.throwException $ Exception.error $ "Unexpected first message: " <> show other
+        input <-
+          let
+            read = CR.await >>= case _ of
+              Message.InitResponse playerId players openGames games ->
+                pure { playerId, players, openGames, games }
+              other -> (Console.warn $ "Unexpected first message: " <> show other) *> read
+          in
+            read
         io <- lift $ runUI appComponent input body
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
         CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
