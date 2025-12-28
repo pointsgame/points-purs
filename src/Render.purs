@@ -3,7 +3,6 @@ module Render where
 import Prelude
 
 import Control.Monad.Writer (execWriter, tell)
-import Data.Bifunctor (bimap)
 import Data.Foldable (traverse_, for_)
 import Data.Function (applyFlipped)
 import Data.Int (floor, toNumber)
@@ -103,73 +102,66 @@ polygon context (h : t) = do
   traverse_ (uncurry (lineTo context)) t
   fill context
 
-surroundings :: Boolean -> NonEmptyList Field -> Tuple (List (NonEmptyList Pos)) (List (NonEmptyList Pos))
+surroundings :: Boolean -> NonEmptyList Field -> List (NonEmptyList Pos)
 surroundings fullFill fields =
   let
     reversedFields = NonEmptyList.reverse fields
-    result player surrounding =
-      let
-        a = Endo $ (:) surrounding
-        b = Endo identity
-      in
-        if player == Player.Red then Tuple a b else Tuple b a
-    tell' player = tell <<< result player
-    run = applyFlipped Nil <<< unwrap
+    tell' surrounding = tell $ Endo $ (:) surrounding
   in
-    bimap run run $ execWriter do
-      for_ reversedFields \field ->
-        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
-          tell' (Field.lastSurroundPlayer field) chain
+    applyFlipped Nil $ unwrap $ execWriter do
       when fullFill $ for_
         ( List.zip
             (NonEmptyList.toList reversedFields)
             (map (List.head <<< Field.moves) $ NonEmptyList.tail reversedFields)
         )
         \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
-          if Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.e pos) player then
-            tell' player $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
+          if Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.e pos) player then
+            tell' $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
           else do
-            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.se pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.se pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.s pos : Field.se pos : List.Nil
-            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.se pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.se pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.se pos : Field.e pos : List.Nil
-          if Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.n pos) player then
-            tell' player $ NonEmptyList.cons' pos $ Field.e pos : Field.n pos : List.Nil
+          if Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.n pos) player then
+            tell' $ NonEmptyList.cons' pos $ Field.e pos : Field.n pos : List.Nil
           else do
-            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.ne pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.ne pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.e pos : Field.ne pos : List.Nil
-            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.ne pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.ne pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.ne pos : Field.n pos : List.Nil
-          if Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.w pos) player then
-            tell' player $ NonEmptyList.cons' pos $ Field.n pos : Field.w pos : List.Nil
+          if Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.w pos) player then
+            tell' $ NonEmptyList.cons' pos $ Field.n pos : Field.w pos : List.Nil
           else do
-            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.nw pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.nw pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.n pos : Field.nw pos : List.Nil
-            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.nw pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.nw pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.nw pos : Field.w pos : List.Nil
-          if Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.s pos) player then
-            tell' player $ NonEmptyList.cons' pos $ Field.w pos : Field.s pos : List.Nil
+          if Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.s pos) player then
+            tell' $ NonEmptyList.cons' pos $ Field.w pos : Field.s pos : List.Nil
           else do
-            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.sw pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.sw pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.w pos : Field.sw pos : List.Nil
-            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.sw pos) player)
-              $ tell' player
+            when (Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.sw pos) player)
+              $ tell'
               $ NonEmptyList.cons' pos
               $ Field.sw pos : Field.s pos : List.Nil
+      for_ reversedFields \field ->
+        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
+          tell' chain
 
 draw :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
@@ -227,16 +219,10 @@ draw
       setStrokeStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 3.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       stroke context
-    -- Rendering little surroundings.
+    -- Rendering surroundings.
     setGlobalAlpha context fillingAlpha
-    let
-      f = merge <<< (map NonEmptyList.toList) <<< List.reverse
-      Tuple redSurrounding blackSurroundings = bimap f f $ surroundings fullFill fields
-    for_ redSurrounding \surrounding -> do
-      setFillStyle context redColor
-      polygon context $ map fromPos surrounding
-    for_ blackSurroundings \surrounding -> do
-      setFillStyle context blackColor
+    for_ (merge $ (map NonEmptyList.toList) $ List.reverse $ surroundings fullFill fields) \surrounding -> do
+      setFillStyle context $ if Maybe.maybe false (\pos -> Field.isPlayer headField pos Player.Red) (List.head surrounding) then redColor else blackColor
       polygon context $ map fromPos surrounding
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit

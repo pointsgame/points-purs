@@ -19,6 +19,7 @@ module Field
   , scoreBlack
   , isFull
   , isPuttingAllowed
+  , isOwner
   , isPlayer
   , emptyField
   , putPoint
@@ -156,6 +157,13 @@ isPlayer :: Field -> Pos -> Player -> Boolean
 isPlayer (Field field) pos player =
   case field.cells Array2D.!! pos of
     Maybe.Just (PointCell player') -> player' == player
+    Maybe.Just (BaseCell player' true) -> player' /= player
+    _ -> false
+
+isOwner :: Field -> Pos -> Player -> Boolean
+isOwner (Field field) pos player =
+  case field.cells Array2D.!! pos of
+    Maybe.Just (PointCell player') -> player' == player
     Maybe.Just (BaseCell player' _) -> player' == player
     _ -> false
 
@@ -253,37 +261,37 @@ buildChain field startPos nextPos player = if square chain > 0 then Maybe.Just c
         $ NonEmptyList.dropWhile (_ /= nextPos') list
   getNextPlayerPos centerPos pos
     | pos == startPos = pos
-    | isPlayer field pos player = pos
+    | isOwner field pos player = pos
     | otherwise = getNextPlayerPos centerPos (UnsafePartial.unsafePartial $ getNextPos centerPos pos)
 
 getInputPoints :: Field -> Pos -> Player -> List (Tuple Pos Pos)
 getInputPoints field pos player =
   let
     list1 =
-      if not $ isPlayer field (w pos) player then
-        if isPlayer field (sw pos) player then List.singleton $ Tuple (sw pos) (w pos)
-        else if isPlayer field (s pos) player then List.singleton $ Tuple (s pos) (w pos)
+      if not $ isOwner field (w pos) player then
+        if isOwner field (sw pos) player then List.singleton $ Tuple (sw pos) (w pos)
+        else if isOwner field (s pos) player then List.singleton $ Tuple (s pos) (w pos)
         else List.Nil
       else
         List.Nil
     list2 =
-      if not $ isPlayer field (n pos) player then
-        if isPlayer field (nw pos) player then Tuple (nw pos) (n pos) : list1
-        else if isPlayer field (w pos) player then Tuple (w pos) (n pos) : list1
+      if not $ isOwner field (n pos) player then
+        if isOwner field (nw pos) player then Tuple (nw pos) (n pos) : list1
+        else if isOwner field (w pos) player then Tuple (w pos) (n pos) : list1
         else list1
       else
         list1
     list3 =
-      if not $ isPlayer field (e pos) player then
-        if isPlayer field (ne pos) player then Tuple (ne pos) (e pos) : list2
-        else if isPlayer field (n pos) player then Tuple (n pos) (e pos) : list2
+      if not $ isOwner field (e pos) player then
+        if isOwner field (ne pos) player then Tuple (ne pos) (e pos) : list2
+        else if isOwner field (n pos) player then Tuple (n pos) (e pos) : list2
         else list2
       else
         list2
     list4 =
-      if not $ isPlayer field (s pos) player then
-        if isPlayer field (se pos) player then Tuple (se pos) (s pos) : list3
-        else if isPlayer field (e pos) player then Tuple (e pos) (s pos) : list3
+      if not $ isOwner field (s pos) player then
+        if isOwner field (se pos) player then Tuple (se pos) (s pos) : list3
+        else if isOwner field (e pos) player then Tuple (e pos) (s pos) : list3
         else list3
       else
         list3
@@ -322,7 +330,7 @@ getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> 
   where
   emptyBaseChain = getEmptyBaseChain (w startPos)
   getEmptyBaseChain pos
-    | not $ isPlayer field pos player = getEmptyBaseChain (w pos)
+    | not $ isOwner field pos player = getEmptyBaseChain (w pos)
     | otherwise =
         let
           inputPoints = getInputPoints field pos player
