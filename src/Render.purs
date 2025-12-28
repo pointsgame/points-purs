@@ -2,14 +2,19 @@ module Render where
 
 import Prelude
 
+import Control.Monad.Writer (execWriter, tell)
+import Data.Bifunctor (bimap)
 import Data.Foldable (traverse_, for_)
+import Data.Function (applyFlipped)
 import Data.Int (floor, toNumber)
-import Data.List (List, (:))
+import Data.List (List(..), (:))
 import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Maybe (maybe)
 import Data.Maybe as Maybe
+import Data.Monoid.Endo (Endo(..))
+import Data.Newtype (unwrap)
 import Data.Number (pi)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple.Nested (type (/\), tuple4, (/\))
@@ -18,6 +23,7 @@ import Field (Field, Pos)
 import Field as Field
 import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
+import PolygonMerge (merge)
 
 type DrawSettings =
   { hReflection :: Boolean
@@ -97,6 +103,74 @@ polygon context (h : t) = do
   traverse_ (uncurry (lineTo context)) t
   fill context
 
+surroundings :: Boolean -> NonEmptyList Field -> Tuple (List (NonEmptyList Pos)) (List (NonEmptyList Pos))
+surroundings fullFill fields =
+  let
+    reversedFields = NonEmptyList.reverse fields
+    result player surrounding =
+      let
+        a = Endo $ (:) surrounding
+        b = Endo identity
+      in
+        if player == Player.Red then Tuple a b else Tuple b a
+    tell' player = tell <<< result player
+    run = applyFlipped Nil <<< unwrap
+  in
+    bimap run run $ execWriter do
+      for_ reversedFields \field ->
+        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
+          tell' (Field.lastSurroundPlayer field) chain
+      when fullFill $ for_
+        ( List.zip
+            (NonEmptyList.toList reversedFields)
+            (map (List.head <<< Field.moves) $ NonEmptyList.tail reversedFields)
+        )
+        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
+          if Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.e pos) player then
+            tell' player $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
+          else do
+            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.se pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.s pos : Field.se pos : List.Nil
+            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.se pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.se pos : Field.e pos : List.Nil
+          if Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.n pos) player then
+            tell' player $ NonEmptyList.cons' pos $ Field.e pos : Field.n pos : List.Nil
+          else do
+            when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.ne pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.e pos : Field.ne pos : List.Nil
+            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.ne pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.ne pos : Field.n pos : List.Nil
+          if Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.w pos) player then
+            tell' player $ NonEmptyList.cons' pos $ Field.n pos : Field.w pos : List.Nil
+          else do
+            when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.nw pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.n pos : Field.nw pos : List.Nil
+            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.nw pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.nw pos : Field.w pos : List.Nil
+          if Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.s pos) player then
+            tell' player $ NonEmptyList.cons' pos $ Field.w pos : Field.s pos : List.Nil
+          else do
+            when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.sw pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.w pos : Field.sw pos : List.Nil
+            when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.sw pos) player)
+              $ tell' player
+              $ NonEmptyList.cons' pos
+              $ Field.sw pos : Field.s pos : List.Nil
+
 draw :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   { hReflection
@@ -124,10 +198,10 @@ draw
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
-    --Rendering background.
+    -- Rendering background.
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
-    --Rendering grig.
+    -- Rendering grig.
     setLineWidth context $ toNumber gridThickness
     setStrokeStyle context gridColor
     for_ verticalLines \x -> do
@@ -140,71 +214,30 @@ draw
       moveTo context shiftX y
       lineTo context (shiftX + width') y
       stroke context
-    --Rendering points.
+    -- Rendering points.
     for_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setFillStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       fill context
-    --Rendering last point.
+    -- Rendering last point.
     for_ (List.head $ Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setLineWidth context 2.0
       setStrokeStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 3.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       stroke context
-    --Rendering little surroundings.
+    -- Rendering little surroundings.
     setGlobalAlpha context fillingAlpha
-    let reversedFields = NonEmptyList.reverse fields
-    when fullFill
-      $ for_
-          ( List.zip
-              (NonEmptyList.toList reversedFields)
-              (map (List.head <<< Field.moves) $ NonEmptyList.tail reversedFields)
-          )
-          \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
-            setFillStyle context $ if player == Player.Red then redColor else blackColor
-            if Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.e pos) player then
-              polygon context $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.e pos) : List.Nil
-            else do
-              when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.se pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.se pos) : List.Nil
-              when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.se pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.se pos) : List.Nil
-            if Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.n pos) player then
-              polygon context $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.n pos) : List.Nil
-            else do
-              when (Field.isPlayer field (Field.e pos) player && Field.isPlayer field (Field.ne pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.e pos) : fromPos (Field.ne pos) : List.Nil
-              when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.ne pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.ne pos) : List.Nil
-            if Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.w pos) player then
-              polygon context $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.w pos) : List.Nil
-            else do
-              when (Field.isPlayer field (Field.n pos) player && Field.isPlayer field (Field.nw pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.n pos) : fromPos (Field.nw pos) : List.Nil
-              when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.nw pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.nw pos) : List.Nil
-            if Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.s pos) player then
-              polygon context $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.s pos) : List.Nil
-            else do
-              when (Field.isPlayer field (Field.w pos) player && Field.isPlayer field (Field.sw pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.w pos) : fromPos (Field.sw pos) : List.Nil
-              when (Field.isPlayer field (Field.s pos) player && Field.isPlayer field (Field.sw pos) player)
-                $ polygon context
-                $ fromPos pos : fromPos (Field.s pos) : fromPos (Field.sw pos) : List.Nil
-    --Rendering surroundings.
-    for_ reversedFields \field ->
-      when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
-        setFillStyle context $ if Field.lastSurroundPlayer field == Player.Red then redColor else blackColor
-        polygon context $ map fromPos $ NonEmptyList.toList chain
+    let
+      f = merge <<< (map NonEmptyList.toList) <<< List.reverse
+      Tuple redSurrounding blackSurroundings = bimap f f $ surroundings fullFill fields
+    for_ redSurrounding \surrounding -> do
+      setFillStyle context redColor
+      polygon context $ map fromPos surrounding
+    for_ blackSurroundings \surrounding -> do
+      setFillStyle context blackColor
+      polygon context $ map fromPos surrounding
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
 drawPointer
