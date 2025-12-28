@@ -97,15 +97,14 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
 surroundings :: Boolean -> NonEmptyList Field -> List (NonEmptyList Pos)
 surroundings fullFill fields =
   let
-    reversedFields = NonEmptyList.reverse fields
     tell' surrounding = tell $ Endo $ (:) surrounding
   in
     applyFlipped Nil $ unwrap $ execWriter do
+      for_ fields \field ->
+        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
+          tell' chain
       when fullFill $ for_
-        ( List.zip
-            (NonEmptyList.toList reversedFields)
-            (map (List.head <<< Field.moves) $ NonEmptyList.tail reversedFields)
-        )
+        (List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields))
         \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
           if Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.e pos) player then
             tell' $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
@@ -151,9 +150,6 @@ surroundings fullFill fields =
               $ tell'
               $ NonEmptyList.cons' pos
               $ Field.sw pos : Field.s pos : List.Nil
-      for_ reversedFields \field ->
-        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
-          tell' chain
 
 draw :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
@@ -213,7 +209,7 @@ draw
       stroke context
     -- Rendering surroundings.
     setGlobalAlpha context fillingAlpha
-    for_ (connectHoles $ merge $ List.reverse $ surroundings fullFill fields) \(Tuple surrounding holes) -> do
+    for_ (connectHoles $ merge $ surroundings fullFill fields) \(Tuple surrounding holes) -> do
       setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
       beginPath context
       uncurry (moveTo context) $ fromPos $ NonEmptyList.head surrounding
