@@ -1,5 +1,6 @@
 module Field
   ( Pos
+  , Chain
   , n
   , s
   , w
@@ -52,6 +53,7 @@ import Player (Player)
 import Player as Player
 
 type Pos = Tuple Int Int
+type Chain = NonEmptyList Pos
 
 count :: forall a. (a -> Boolean) -> List a -> Int
 count f = List.length <<< List.filter f
@@ -97,7 +99,7 @@ newtype Field =
     , scoreBlack :: Int
     , moves :: List (Tuple Pos Player)
     , lastSurroundPlayer :: Player
-    , lastSurroundChains :: List (NonEmptyList Pos)
+    , lastSurroundChains :: List Chain
     , cells :: Array2D.Array2D Cell
     }
 
@@ -132,7 +134,7 @@ moves (Field field) = field.moves
 lastSurroundPlayer :: Field -> Player
 lastSurroundPlayer (Field field) = field.lastSurroundPlayer
 
-lastSurroundChains :: Field -> List (NonEmptyList Pos)
+lastSurroundChains :: Field -> List Chain
 lastSurroundChains (Field field) = field.lastSurroundChains
 
 scoreRed :: Field -> Int
@@ -238,7 +240,7 @@ getNextPos centerPos pos =
       0, 1 -> w pos
       1, 1 -> w pos
 
-square :: NonEmptyList Pos -> Int
+square :: Chain -> Int
 square chain = square' chain 0
   where
   square' list acc = case NonEmptyList.uncons list of
@@ -246,7 +248,7 @@ square chain = square' chain 0
     { head: h1, tail: List.Cons h2 t } -> square' (NonEmptyList.cons' h2 t) (acc + skewProduct h1 h2)
   skewProduct (Tuple x1 y1) (Tuple x2 y2) = x1 * y2 - y1 * x2
 
-buildChain :: Field -> Pos -> Pos -> Player -> Maybe (NonEmptyList Pos)
+buildChain :: Field -> Pos -> Pos -> Player -> Maybe Chain
 buildChain field startPos nextPos player = if square chain > 0 then Maybe.Just chain else Maybe.Nothing
   where
   chain = getChain startPos $ NonEmptyList.cons' nextPos $ List.singleton startPos
@@ -299,7 +301,7 @@ getInputPoints field pos player =
   in
     list4
 
-posInsideRing :: Pos -> NonEmptyList Pos -> Boolean
+posInsideRing :: Pos -> Chain -> Boolean
 posInsideRing (Tuple x y) ring =
   case NonEmptyList.fromList $ uniq $ map Tuple.snd $ NonEmptyList.filter ((_ <= x) <<< Tuple.fst) ring of
     Maybe.Just coords ->
@@ -319,14 +321,14 @@ posInsideRing (Tuple x y) ring =
           $ List.zip (NonEmptyList.tail coords') (List.drop 1 $ NonEmptyList.tail coords')
     Maybe.Nothing -> false
 
-getInsideRing :: Field -> Pos -> NonEmptyList Pos -> Set.Set Pos
+getInsideRing :: Field -> Pos -> Chain -> Set.Set Pos
 getInsideRing field startPos ring =
   let
     ringSet = Set.fromFoldable ring
   in
     wave field startPos $ flip Set.member ringSet >>> not
 
-getEmptyBase :: Field -> Pos -> Player -> Tuple (NonEmptyList Pos) (Set.Set Pos)
+getEmptyBase :: Field -> Pos -> Player -> Tuple Chain (Set.Set Pos)
 getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> isEmptyBase field pos player) $ getInsideRing field startPos emptyBaseChain
   where
   emptyBaseChain = getEmptyBaseChain (w startPos)

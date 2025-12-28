@@ -1,10 +1,9 @@
-module PolygonMerge (merge, connectHoles, Polygon) where
+module PolygonMerge (merge, connectHoles) where
 
 import Prelude
 
 import Data.Foldable (foldl)
 import Data.List (List(..), concatMap, filter, null, reverse, zip, (:))
-import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
@@ -12,14 +11,13 @@ import Data.Maybe (Maybe(..))
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst)
-import Field (Pos, square, w)
+import Field (Chain, Pos, square, w)
 
-type Polygon = NonEmptyList Pos
 type Edge = Tuple Pos Pos
 
 -- | Connect hole polygons to their containing (real) polygons.
 -- | Polygons must be ordered clockwise, and holes counter-clockwise.
-connectHoles :: List Polygon -> List (Tuple Polygon (List Polygon))
+connectHoles :: List Chain -> List (Tuple Chain (List Chain))
 connectHoles polygons =
   let
     Tuple realPolygons holes = split (\p -> square p < 0) polygons
@@ -60,7 +58,7 @@ split p xs = loop xs Nil Nil
 -- | Preserves ordering based on the input list.
 -- | The result polygons are ordered clockwise,
 -- | and holes are ordered counter-clockwise.
-merge :: List Polygon -> List Polygon
+merge :: List Chain -> List Chain
 merge polygons = reconstruct originalVertices adjMap Nil
   where
   -- Flatten all polygons into a single list of edges.
@@ -88,7 +86,7 @@ merge polygons = reconstruct originalVertices adjMap Nil
   originalVertices = concatMap identity $ map NonEmptyList.toList polygons
 
 -- | Converts a polygon (list of points) into a list of directed edges.
-polyToEdges :: Polygon -> List Edge
+polyToEdges :: Chain -> List Edge
 polyToEdges polygon = zip (NonEmptyList.toList polygon) (NonEmptyList.tail polygon <> (NonEmptyList.head polygon : Nil))
 
 -- | The XOR logic for edges.
@@ -99,7 +97,7 @@ toggleEdge s (Tuple u v) =
   else Set.insert (Tuple u v) s
 
 -- | Reconstructs polygons from the adjacency map.
-reconstruct :: List Pos -> Map Pos (List Pos) -> List Polygon -> List Polygon
+reconstruct :: List Pos -> Map Pos (List Pos) -> List Chain -> List Chain
 reconstruct Nil _ acc = acc
 reconstruct (p : ps) m acc =
   case Map.lookup p m of
@@ -111,7 +109,7 @@ reconstruct (p : ps) m acc =
         reconstruct ps result.newMap (result.poly : acc)
     _ -> reconstruct ps m acc
 
-type TraceResult = { poly :: Polygon, newMap :: Map Pos (List Pos) }
+type TraceResult = { poly :: Chain, newMap :: Map Pos (List Pos) }
 
 -- | Traces a single polygon cycle starting at 'start' and going to 'firstNext'.
 tracePoly :: Pos -> Pos -> Map Pos (List Pos) -> TraceResult

@@ -18,7 +18,7 @@ import Data.Number (pi)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
-import Field (Field, Pos)
+import Field (Field, Pos, Chain)
 import Field as Field
 import Graphics.Canvas (Context2D, arc, beginPath, clearRect, closePath, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
@@ -94,7 +94,7 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
       (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
       (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
 
-surroundings :: Boolean -> NonEmptyList Field -> List (NonEmptyList Pos)
+surroundings :: Boolean -> NonEmptyList Field -> List Chain
 surroundings fullFill fields =
   let
     tell' surrounding = tell $ Endo $ (:) surrounding
@@ -151,7 +151,10 @@ surroundings fullFill fields =
               $ NonEmptyList.cons' pos
               $ Field.sw pos : Field.s pos : List.Nil
 
-draw :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
+mergedSurroundings :: Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
+mergedSurroundings fullFill fields = connectHoles $ merge $ surroundings fullFill fields
+
+draw :: DrawSettings -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   { hReflection
   , vReflection
@@ -161,8 +164,8 @@ draw
   , blackColor
   , pointRadius
   , fillingAlpha
-  , fullFill
   }
+  surroundings'
   width
   height
   fields
@@ -209,7 +212,7 @@ draw
       stroke context
     -- Rendering surroundings.
     setGlobalAlpha context fillingAlpha
-    for_ (connectHoles $ merge $ surroundings fullFill fields) \(Tuple surrounding holes) -> do
+    for_ surroundings' \(Tuple surrounding holes) -> do
       setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
       beginPath context
       uncurry (moveTo context) $ fromPos $ NonEmptyList.head surrounding
