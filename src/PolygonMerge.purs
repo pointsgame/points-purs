@@ -18,6 +18,7 @@ type Polygon = NonEmptyList Pos
 type Edge = Tuple Pos Pos
 
 -- | Connect hole polygons to their containing (real) polygons.
+-- | Polygons must be ordered clockwise, and holes counter-clockwise.
 connectHoles :: List Polygon -> List (Tuple Polygon (List Polygon))
 connectHoles polygons =
   let
@@ -57,7 +58,8 @@ split p xs = loop xs Nil Nil
 -- | Merges polygons that share a common border.
 -- | Polygons must be ordered counter-clockwise.
 -- | Preserves ordering based on the input list.
--- | Reverses polygons.
+-- | The result polygons are ordered clockwise,
+-- | and holes are ordered counter-clockwise.
 merge :: List Polygon -> List Polygon
 merge polygons = reconstruct originalVertices adjMap Nil
   where
