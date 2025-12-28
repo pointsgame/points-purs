@@ -20,9 +20,9 @@ import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (Context2D, arc, beginPath, clearRect, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Graphics.Canvas (Context2D, arc, beginPath, clearRect, closePath, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
 import Player as Player
-import PolygonMerge (merge)
+import PolygonMerge (connectHoles, merge)
 
 type DrawSettings =
   { hReflection :: Boolean
@@ -93,14 +93,6 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
       ((_ + pixelShift) <<< toNumber <<< floor <<< (shiftY + _) <<< fromPosXY (not vReflection) height' fieldHeight) -- fromGamePosY
       (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
       (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
-
-polygon :: Context2D -> List (Tuple Number Number) -> Effect Unit
-polygon _ List.Nil = pure unit
-polygon context (h : t) = do
-  beginPath context
-  uncurry (moveTo context) h
-  traverse_ (uncurry (lineTo context)) t
-  fill context
 
 surroundings :: Boolean -> NonEmptyList Field -> List (NonEmptyList Pos)
 surroundings fullFill fields =
@@ -221,9 +213,17 @@ draw
       stroke context
     -- Rendering surroundings.
     setGlobalAlpha context fillingAlpha
-    for_ (merge $ (map NonEmptyList.toList) $ List.reverse $ surroundings fullFill fields) \surrounding -> do
-      setFillStyle context $ if Maybe.maybe false (\pos -> Field.isPlayer headField pos Player.Red) (List.head surrounding) then redColor else blackColor
-      polygon context $ map fromPos surrounding
+    for_ (connectHoles $ merge $ List.reverse $ surroundings fullFill fields) \(Tuple surrounding holes) -> do
+      setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
+      beginPath context
+      uncurry (moveTo context) $ fromPos $ NonEmptyList.head surrounding
+      traverse_ (uncurry (lineTo context)) $ map fromPos $ NonEmptyList.tail surrounding
+      closePath context
+      for_ holes \hole -> do
+        uncurry (moveTo context) $ fromPos $ NonEmptyList.head hole
+        traverse_ (uncurry (lineTo context)) $ map fromPos $ NonEmptyList.tail hole
+        closePath context
+      fill context
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
 drawPointer

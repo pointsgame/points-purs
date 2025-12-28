@@ -17,6 +17,7 @@ module Field
   , lastSurroundChains
   , scoreRed
   , scoreBlack
+  , square
   , isFull
   , isPuttingAllowed
   , isOwner
