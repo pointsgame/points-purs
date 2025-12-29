@@ -11,7 +11,7 @@ import Data.Maybe (Maybe(..))
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst)
-import Field (Chain, Pos, square, w)
+import Field (Chain, Pos, isPosInsideChain, square, w)
 
 type Edge = Tuple Pos Pos
 
@@ -38,7 +38,14 @@ connectHoles polygons =
           ( \(Tuple polygon polygonSet) ->
               Tuple polygon
                 $ map fst
-                $ filter (\(Tuple _ boundaryPos) -> Set.member boundaryPos polygonSet) holesWithBoundaryPos
+                $ filter
+                    ( \(Tuple hole boundaryPos) ->
+                        let
+                          holePos = NonEmptyList.head hole
+                        in
+                          Set.member boundaryPos polygonSet && (Set.member holePos polygonSet || isPosInsideChain holePos polygon)
+                    )
+                    holesWithBoundaryPos
           ) $ zip realPolygons polygonSets
 
 -- | Splits a list into two lists based on a predicate.
@@ -79,7 +86,7 @@ merge polygons = reconstruct originalVertices adjMap Nil
   insertEdge m (Tuple u v) =
     case Map.lookup u m of
       Nothing -> Map.insert u (v : Nil) m
-      Just vs -> Map.insert u (v : vs) m
+      Just vs -> Map.insert u (vs <> v : Nil) m
 
   -- We keep a list of all original vertices to determine the order of output polygons.
   originalVertices :: List Pos

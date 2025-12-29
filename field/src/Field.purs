@@ -19,6 +19,7 @@ module Field
   , scoreRed
   , scoreBlack
   , square
+  , isPosInsideChain
   , isFull
   , isPuttingAllowed
   , isOwner
@@ -301,8 +302,8 @@ getInputPoints field pos player =
   in
     list4
 
-posInsideRing :: Pos -> Chain -> Boolean
-posInsideRing (Tuple x y) ring =
+isPosInsideChain :: Pos -> Chain -> Boolean
+isPosInsideChain (Tuple x y) ring =
   case NonEmptyList.fromList $ uniq $ map Tuple.snd $ NonEmptyList.filter ((_ <= x) <<< Tuple.fst) ring of
     Maybe.Just coords ->
       let
@@ -321,15 +322,15 @@ posInsideRing (Tuple x y) ring =
           $ List.zip (NonEmptyList.tail coords') (List.drop 1 $ NonEmptyList.tail coords')
     Maybe.Nothing -> false
 
-getInsideRing :: Field -> Pos -> Chain -> Set.Set Pos
-getInsideRing field startPos ring =
+getInsideChain :: Field -> Pos -> Chain -> Set.Set Pos
+getInsideChain field startPos ring =
   let
     ringSet = Set.fromFoldable ring
   in
     wave field startPos $ flip Set.member ringSet >>> not
 
 getEmptyBase :: Field -> Pos -> Player -> Tuple Chain (Set.Set Pos)
-getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> isEmptyBase field pos player) $ getInsideRing field startPos emptyBaseChain
+getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> isEmptyBase field pos player) $ getInsideChain field startPos emptyBaseChain
   where
   emptyBaseChain = getEmptyBaseChain (w startPos)
   getEmptyBaseChain pos
@@ -338,7 +339,7 @@ getEmptyBase field startPos player = Tuple emptyBaseChain $ Set.filter (\pos -> 
         let
           inputPoints = getInputPoints field pos player
           chains = List.mapMaybe (\(Tuple chainPos _) -> buildChain field pos chainPos player) inputPoints
-          result = List.find (posInsideRing startPos) chains
+          result = List.find (isPosInsideChain startPos) chains
         in
           Maybe.fromMaybe' (\_ -> getEmptyBaseChain (w pos)) result
 
@@ -379,7 +380,7 @@ putPoint pos player (Field field)
                 List.foldl
                   ( \field' (Tuple chain capturedPos) ->
                       let
-                        captured = List.fromFoldable $ getInsideRing (Field field') capturedPos chain
+                        captured = List.fromFoldable $ getInsideChain (Field field') capturedPos chain
                         capturedCount = count (\pos' -> isPlayersPoint (Field field') pos' enemyPlayer) captured
                         freedCount = count (\pos' -> isCapturedPoint (Field field') pos' player) captured
                       in
