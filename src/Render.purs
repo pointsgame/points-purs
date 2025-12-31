@@ -6,7 +6,7 @@ import Control.Monad.Writer (execWriter, tell)
 import Data.Foldable (traverse_, for_)
 import Data.Function (applyFlipped)
 import Data.Int (floor, toNumber)
-import Data.List (List(..), (:))
+import Data.List (List(..), mapMaybe, (:))
 import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
@@ -15,12 +15,14 @@ import Data.Maybe as Maybe
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (unwrap)
 import Data.Number (pi)
+import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
 import Field as Field
 import Graphics.Canvas (Context2D, arc, beginPath, clearRect, closePath, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Partial.Unsafe as UnsafePartial
 import Player as Player
 import PolygonMerge (connectHoles, merge)
 
@@ -34,6 +36,7 @@ type DrawSettings =
   , pointRadius :: Number
   , fillingAlpha :: Number
   , fullFill :: Boolean
+  , innerSurroundings :: Boolean
   }
 
 defaultDrawSettings :: DrawSettings
@@ -47,6 +50,7 @@ defaultDrawSettings =
   , pointRadius: 1.0
   , fillingAlpha: 0.5
   , fullFill: true
+  , innerSurroundings: true
   }
 
 fromPosXY :: Boolean -> Number -> Int -> Int -> Number
@@ -94,18 +98,33 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
       (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
       (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
 
-surroundings :: Boolean -> NonEmptyList Field -> List Chain
-surroundings fullFill fields =
+surroundings :: Boolean -> Boolean -> NonEmptyList Field -> List Chain
+surroundings fullFill innerSurroundings fields =
   let
     tell' surrounding = tell $ Endo $ (:) surrounding
+    surrounded =
+      if innerSurroundings then
+        Set.empty
+      else
+        Set.unions $ map (uncurry $ Field.getInsideChain $ NonEmptyList.head fields)
+          $ mapMaybe
+              ( \chain ->
+                  let
+                    pos = NonEmptyList.head chain
+                    nextPos = List.head $ NonEmptyList.tail chain
+                  in
+                    map (flip Tuple chain) $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
+              )
+          $ NonEmptyList.toList fields >>= Field.lastSurroundChains
   in
     applyFlipped Nil $ unwrap $ execWriter do
       for_ fields \field ->
-        when (not $ List.null $ Field.lastSurroundChains field) $ for_ (Field.lastSurroundChains field) \chain -> do
-          tell' chain
+        for_ (Field.lastSurroundChains field) \chain ->
+          when (not $ Set.member (NonEmptyList.head chain) surrounded) $
+            tell' chain
       when fullFill $ for_
         (List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields))
-        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> do
+        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> when (not $ Set.member pos surrounded) do
           if Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.e pos) player then
             tell' $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
           else do
@@ -151,8 +170,8 @@ surroundings fullFill fields =
               $ NonEmptyList.cons' pos
               $ Field.sw pos : Field.s pos : List.Nil
 
-mergedSurroundings :: Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
-mergedSurroundings fullFill fields = connectHoles $ merge $ surroundings fullFill fields
+mergedSurroundings :: Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
+mergedSurroundings fullFill innerSurroundings fields = connectHoles $ merge $ surroundings fullFill innerSurroundings fields
 
 draw :: DrawSettings -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw

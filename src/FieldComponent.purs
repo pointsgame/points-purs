@@ -75,7 +75,7 @@ fieldComponent
 fieldComponent =
   Hooks.component \{ queryToken, outputToken } input -> Hooks.do
     surroundings <- Hooks.captures { field: NonEmptyList.head input.fields } $ flip Hooks.useMemo \_ ->
-      mergedSurroundings defaultDrawSettings.fullFill input.fields
+      mergedSurroundings defaultDrawSettings.fullFill defaultDrawSettings.innerSurroundings input.fields
 
     size /\ sizeId <- Hooks.useState Nothing
 

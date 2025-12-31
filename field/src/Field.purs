@@ -20,6 +20,8 @@ module Field
   , scoreBlack
   , square
   , isPosInsideChain
+  , getInsideChain
+  , getInnerPos
   , isFull
   , isPuttingAllowed
   , isOwner
@@ -214,32 +216,51 @@ getFirstNextPos centerPos pos =
   let
     dx = Tuple.fst pos - Tuple.fst centerPos
     dy = Tuple.snd pos - Tuple.snd centerPos
+    f = case dx, dy of
+      -1, -1 -> se
+      0, -1 -> ne
+      1, -1 -> ne
+      1, 0 -> nw
+      1, 1 -> nw
+      0, 1 -> sw
+      (-1), 1 -> sw
+      (-1), 0 -> se
   in
-    case dx, dy of
-      -1, -1 -> se centerPos
-      0, -1 -> ne centerPos
-      1, -1 -> ne centerPos
-      (-1), 0 -> se centerPos
-      1, 0 -> nw centerPos
-      (-1), 1 -> sw centerPos
-      0, 1 -> sw centerPos
-      1, 1 -> nw centerPos
+    f centerPos
 
 getNextPos :: Partial => Pos -> Pos -> Pos
 getNextPos centerPos pos =
   let
     dx = Tuple.fst pos - Tuple.fst centerPos
     dy = Tuple.snd pos - Tuple.snd centerPos
+    f = case dx, dy of
+      -1, -1 -> e
+      0, -1 -> e
+      1, -1 -> n
+      1, 0 -> n
+      1, 1 -> w
+      0, 1 -> w
+      (-1), 1 -> s
+      (-1), 0 -> s
   in
-    case dx, dy of
-      -1, -1 -> e pos
-      0, -1 -> e pos
-      1, -1 -> n pos
-      (-1), 0 -> s pos
-      1, 0 -> n pos
-      (-1), 1 -> s pos
-      0, 1 -> w pos
-      1, 1 -> w pos
+    f pos
+
+getInnerPos :: Partial => Pos -> Pos -> Pos
+getInnerPos pos nextPos =
+  let
+    dx = Tuple.fst pos - Tuple.fst nextPos
+    dy = Tuple.snd pos - Tuple.snd nextPos
+    f = case dx, dy of
+      -1, -1 -> n
+      0, -1 -> w
+      1, -1 -> w
+      1, 0 -> s
+      1, 1 -> s
+      0, 1 -> e
+      (-1), 1 -> e
+      (-1), 0 -> n
+  in
+    f pos
 
 square :: Chain -> Int
 square chain = square' chain 0
