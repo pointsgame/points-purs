@@ -147,32 +147,6 @@ formatConfig config =
       , HH.text timeStr
       ]
 
-commonHeaderStyle :: CSS.CSS
-commonHeaderStyle = do
-  traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
-  traverse_ CSS.color $ CSS.fromHexString "#333"
-  CSS.padding (CSS.px 2.0) (CSS.px 4.0) (CSS.px 2.0) (CSS.px 4.0)
-  CSS.fontSize (CSS.rem 0.85)
-  CSS.fontWeight CSS.bold
-  CSSTextAlign.textAlign CSSTextAlign.center
-  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#ddd")
-  CSS.key (CSS.fromString "position") "sticky"
-  CSS.top (CSS.px 0.0)
-  CSS.zIndex 10
-
-nameColStyle :: CSS.CSS
-nameColStyle = do
-  CSSOverflow.overflow CSSOverflow.hidden
-  CSS.textOverflow CSSTextOverflow.ellipsis
-  CSS.key (CSS.fromString "white-space") "nowrap"
-
-metaColStyle :: CSS.CSS
-metaColStyle = do
-  CSS.fontSize (CSS.rem 0.75)
-  traverse_ CSS.color $ CSS.fromHexString "#888"
-  CSSTextAlign.textAlign CSSTextAlign.rightTextAlign
-  CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
-
 _games :: Proxy "games"
 _games = Proxy
 
@@ -185,16 +159,16 @@ gamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style commonHeaderStyle ]
+            [ HP.class_ $ wrap rosterHeader ]
             [ HH.text "Games" ]
         ] <>
           ( map
               ( \(Tuple gameId { redPlayer, blackPlayer, config }) -> HH.div
-                  [ HP.classes [ wrap "item-row", wrap "clickable" ]
+                  [ HP.classes [ wrap rosterItemRow, wrap clickable ]
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
                   [ HH.div
-                      [ HCSS.style nameColStyle ]
+                      [ HP.class_ $ wrap rosterName ]
                       [ HH.text redPlayer.nickname
                       , HH.span
                           [ HCSS.style do
@@ -206,7 +180,7 @@ gamesComponent =
                       , HH.text blackPlayer.nickname
                       ]
                   , HH.div
-                      [ HCSS.style metaColStyle ]
+                      [ HP.class_ $ wrap rosterMeta ]
                       [ HH.fromPlainHTML $ formatConfig config ]
                   ]
               )
@@ -225,24 +199,24 @@ openGamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style commonHeaderStyle ]
+            [ HP.class_ $ wrap rosterHeader ]
             [ HH.text "Open games" ]
         ] <>
           ( map
               ( \(Tuple gameId { playerId, player, config }) -> HH.div
                   [ HP.classes
                       if Maybe.isNothing activePlayerId || elem playerId activePlayerId then
-                        [ wrap "item-row" ]
+                        [ wrap rosterItemRow ]
                       else
-                        [ wrap "item-row", wrap "clickable" ]
+                        [ wrap rosterItemRow, wrap clickable ]
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
                   [ HH.div
-                      [ HCSS.style nameColStyle ]
+                      [ HP.class_ $ wrap rosterName ]
                       [ HH.text player.nickname ]
                   , HH.div
-                      [ HCSS.style metaColStyle ]
+                      [ HP.class_ $ wrap rosterMeta ]
                       [ HH.fromPlainHTML $ formatConfig config ]
                   ]
               )
@@ -261,18 +235,18 @@ playersComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HCSS.style commonHeaderStyle
+            [ HP.class_ $ wrap rosterHeader
             ]
             [ HH.text "Players" ]
         ] <>
           ( map
               ( \(Tuple _ player) -> HH.div
-                  [ HP.class_ $ wrap "item-row" ]
+                  [ HP.class_ $ wrap rosterItemRow ]
                   [ HH.div
-                      [ HCSS.style nameColStyle ]
+                      [ HP.class_ $ wrap rosterName ]
                       [ HH.text player.nickname ]
                   , HH.div
-                      [ HCSS.style metaColStyle ]
+                      [ HP.class_ $ wrap rosterMeta ]
                       [ HH.text "1500" ]
                   ]
               )
@@ -1103,9 +1077,15 @@ readChildMessage value = do
   state <- value ! "state" >>= readString
   pure { code, state }
 
-style :: HH.PlainHTML
-style = HCSS.stylesheet do
-  CSS.div CSS.& CSS.byClass "item-row" CSS.? do
+rosterItemRow :: String
+rosterItemRow = "roster-item-row"
+
+clickable :: String
+clickable = "clickable"
+
+rosterItemRowStyle :: CSS.CSS
+rosterItemRowStyle = do
+  CSS.div CSS.& CSS.byClass rosterItemRow CSS.? do
     CSS.display CSS.grid
     CSS.key (CSS.fromString "grid-template-columns") "1fr auto"
     CSS.key (CSS.fromString "gap") "8px"
@@ -1115,9 +1095,51 @@ style = HCSS.stylesheet do
     CSS.fontSize (CSS.rem 0.9)
     CSS.alignItems CSSCommon.center
     CSS.backgroundColor CSS.white
-  ((CSS.div CSS.& CSS.byClass "item-row") CSS.& CSS.byClass "clickable") CSS.& CSS.hover CSS.? do
+  ((CSS.div CSS.& CSS.byClass rosterItemRow) CSS.& CSS.byClass clickable) CSS.& CSS.hover CSS.? do
     traverse_ CSS.backgroundColor (CSS.fromHexString "#f0f7ff")
     CSS.cursor CSSCursor.pointer
+
+rosterName :: String
+rosterName = "roster-name"
+
+rosterNameStyle :: CSS.CSS
+rosterNameStyle = CSS.div CSS.& CSS.byClass rosterName CSS.? do
+  CSSOverflow.overflow CSSOverflow.hidden
+  CSS.textOverflow CSSTextOverflow.ellipsis
+  CSS.key (CSS.fromString "white-space") "nowrap"
+
+rosterMeta :: String
+rosterMeta = "roster-meta"
+
+rosterMetaStyle :: CSS.CSS
+rosterMetaStyle = CSS.div CSS.& CSS.byClass rosterMeta CSS.? do
+  CSS.fontSize (CSS.rem 0.75)
+  traverse_ CSS.color $ CSS.fromHexString "#888"
+  CSSTextAlign.textAlign CSSTextAlign.rightTextAlign
+  CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
+
+rosterHeader :: String
+rosterHeader = "roster-header"
+
+rosterHeaderStyle :: CSS.CSS
+rosterHeaderStyle = CSS.div CSS.& CSS.byClass rosterHeader CSS.? do
+  traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
+  traverse_ CSS.color $ CSS.fromHexString "#333"
+  CSS.padding (CSS.px 2.0) (CSS.px 4.0) (CSS.px 2.0) (CSS.px 4.0)
+  CSS.fontSize (CSS.rem 0.85)
+  CSS.fontWeight CSS.bold
+  CSSTextAlign.textAlign CSSTextAlign.center
+  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#ddd")
+  CSS.key (CSS.fromString "position") "sticky"
+  CSS.top (CSS.px 0.0)
+  CSS.zIndex 10
+
+style :: HH.PlainHTML
+style = HCSS.stylesheet do
+  rosterItemRowStyle
+  rosterNameStyle
+  rosterMetaStyle
+  rosterHeaderStyle
 
 styleComponent
   :: forall query input output m
