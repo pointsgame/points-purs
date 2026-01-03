@@ -20,6 +20,7 @@ import Control.Monad.Except (Except, runExcept)
 import Control.Monad.Maybe.Trans (MaybeT(..), mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Countdown (countdown)
+import DOM.HTML.Indexed.StepValue (StepValue(..))
 import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.DateTime.Instant as Instant
@@ -32,6 +33,7 @@ import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
 import Data.NonEmpty as NonEmpty
+import Data.Number as Number
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -64,7 +66,9 @@ import Halogen.Svg.Elements as SvgElements
 import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Player as Player
+import Render (DrawSettings, defaultDrawSettings)
 import Type.Proxy (Proxy(..))
+import UsePersistentState as UsePersistentState
 import Web.DOM.DOMTokenList as DOMTokenList
 import Web.DOM.Element as Element
 import Web.DOM.MutationObserver as MutationObserver
@@ -261,6 +265,214 @@ buttonStyle = do
   CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
   CSS.cursor CSSCursor.pointer
   CSS.key (CSS.fromString "white-space") "nowrap"
+
+_drawSettings :: Proxy "drawSettings"
+_drawSettings = Proxy
+
+data SettingsOutput = UpdateSettings DrawSettings
+
+drawSettingsComponent
+  :: forall query m
+   . MonadAff m
+  => H.Component query DrawSettings SettingsOutput m
+drawSettingsComponent =
+  Hooks.component \{ outputToken } settings -> Hooks.do
+    let
+      borderColor = CSS.fromHexString "#dee2e6"
+      primaryBtnColor = CSS.fromHexString "#e9ecef"
+
+      -- Helper to render a generic row (Number/Int/String/Color)
+      renderInputRow id label inputType val minVal maxVal stepVal =
+        HH.tr_
+          [ HH.td
+              [ HCSS.style do
+                  CSS.fontSize (CSS.px 14.0)
+                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
+              ]
+              [ HH.text label ]
+          , HH.td
+              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HH.input $
+                  [ HP.id id
+                  , HP.type_ inputType
+                  , HP.value val
+                  , HCSS.style do
+                      CSS.width (CSS.px 60.0)
+                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
+                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                      CSSTextAlign.textAlign CSSTextAlign.center
+                  ]
+                    <> Maybe.maybe [] (pure <<< HP.min) minVal
+                    <> Maybe.maybe [] (pure <<< HP.max) maxVal
+                    <>
+                      Maybe.maybe [] (pure <<< HP.step) stepVal
+              ]
+          ]
+
+      -- Helper to render a Checkbox row
+      renderCheckboxRow id label isChecked =
+        HH.tr_
+          [ HH.td
+              [ HCSS.style do
+                  CSS.fontSize (CSS.px 14.0)
+                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
+              ]
+              [ HH.text label ]
+          , HH.td
+              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HH.input
+                  [ HP.id id
+                  , HP.type_ HP.InputCheckbox
+                  , HP.checked isChecked
+                  , HCSS.style do
+                      CSS.width (CSS.px 18.0)
+                      CSS.height (CSS.px 18.0)
+                      CSS.cursor CSSCursor.pointer
+                  ]
+              ]
+          ]
+
+      -- Render Section Header
+      renderHeader title =
+        HH.h3
+          [ HCSS.style do
+              CSS.marginTop (CSS.px 0.0)
+              CSS.fontSize (CSS.rem 0.9)
+              traverse_ CSS.color $ CSS.fromHexString "#666"
+              CSS.textTransform CSSTextTransform.uppercase
+              CSS.letterSpacing (CSS.px 1.0)
+              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) borderColor
+              CSS.paddingBottom (CSS.px 10.0)
+              CSS.marginBottom (CSS.px 15.0)
+          ]
+          [ HH.text title ]
+
+    Hooks.pure $ HH.div
+      [ HCSS.style do
+          CSS.width $ CSS.pct 100.0
+          CSS.height $ CSS.pct 100.0
+          CSS.position CSS.relative
+          CSS.display CSS.flex
+          CSS.justifyContent CSSCommon.center
+          CSS.alignItems CSSCommon.center
+          CSS.backgroundColor CSS.white
+      ]
+      [ HH.div
+          [ HCSS.style do
+              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
+              CSS.backgroundColor CSS.white
+              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
+          ]
+          [ -- Config Grid
+            HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.marginBottom (CSS.px 30.0)
+              ]
+              [ -- Column 1: Appearance & Options
+                HH.div
+                  [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
+                  [ renderHeader "Appearance"
+                  , HH.table_
+                      [ renderInputRow "gridThickness" "Grid Thickness" HP.InputNumber (show settings.gridThickness) (Maybe.Just 1.0) (Maybe.Just 5.0) (Maybe.Just $ Step 1.0)
+                      , renderInputRow "pointRadius" "Point Radius" HP.InputNumber (show settings.pointRadius) (Maybe.Just 0.1) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
+                      , renderInputRow "fillingAlpha" "Opacity" HP.InputNumber (show settings.fillingAlpha) (Maybe.Just 0.0) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
+                      ]
+                  , HH.div [ HCSS.style $ CSS.marginTop (CSS.px 20.0) ] []
+                  , renderHeader "Options"
+                  , HH.table_
+                      [ renderCheckboxRow "fullFill" "Full Fill" settings.fullFill
+                      , renderCheckboxRow "innerSurroundings" "Inner Surroundings" settings.innerSurroundings
+                      , renderCheckboxRow "hReflection" "H-Reflection" settings.hReflection
+                      , renderCheckboxRow "vReflection" "V-Reflection" settings.vReflection
+                      ]
+                  ]
+              , -- Column 2: Colors
+                HH.div_
+                  [ renderHeader "Colors"
+                  , HH.table_
+                      [ renderInputRow "gridColor" "Grid" HP.InputColor settings.gridColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                      , renderInputRow "redColor" "Red Player" HP.InputColor settings.redColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                      , renderInputRow "blackColor" "Black Player" HP.InputColor settings.blackColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                      ]
+                  ]
+              ]
+          , -- Button Group
+            HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.justifyContent CSSCommon.center
+                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) borderColor
+                  CSS.paddingTop (CSS.px 20.0)
+              ]
+              [ HH.button
+                  [ HCSS.style do
+                      traverse_ CSS.backgroundColor primaryBtnColor
+                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                      CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
+                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                      CSS.cursor CSSCursor.pointer
+                      CSS.fontWeight CSS.bold
+                  , HE.onClick $ const $ do
+                      window <- liftEffect $ HTML.window
+                      document <- liftEffect $ Window.document window
+                      let
+                        document' = Document.toNonElementParentNode document
+
+                        -- Helper to get generic value
+                        getValue id = mapMaybeT liftEffect $ do
+                          elem <- wrap $ getElementById id document'
+                          input <- MaybeT $ pure $ HTMLInputElement.fromElement elem
+                          lift $ HTMLInputElement.value input
+
+                        -- Helper for Int
+                        getInt id = do
+                          val <- getValue id
+                          MaybeT $ pure $ Int.fromString val
+
+                        -- Helper for Number
+                        getNumber id = do
+                          val <- getValue id
+                          MaybeT $ pure $ Number.fromString val
+
+                        -- Helper for Checkboxes
+                        getChecked id = mapMaybeT liftEffect $ do
+                          elem <- wrap $ getElementById id document'
+                          input <- MaybeT $ pure $ HTMLInputElement.fromElement elem
+                          lift $ HTMLInputElement.checked input
+
+                      void $ runMaybeT $ do
+                        hReflection <- getChecked "hReflection"
+                        vReflection <- getChecked "vReflection"
+                        fullFill <- getChecked "fullFill"
+                        innerSurroundings <- getChecked "innerSurroundings"
+                        gridThickness <- getInt "gridThickness"
+                        pointRadius <- getNumber "pointRadius"
+                        fillingAlpha <- getNumber "fillingAlpha"
+                        gridColor <- getValue "gridColor"
+                        redColor <- getValue "redColor"
+                        blackColor <- getValue "blackColor"
+
+                        lift $ Hooks.raise outputToken $ UpdateSettings
+                          { hReflection
+                          , vReflection
+                          , fullFill
+                          , innerSurroundings
+                          , gridThickness
+                          , pointRadius
+                          , fillingAlpha
+                          , gridColor
+                          , redColor
+                          , blackColor
+                          }
+                  ]
+                  [ HH.text "Update Settings" ]
+              ]
+          ]
+      ]
 
 _createGame :: Proxy "createGame"
 _createGame = Proxy
@@ -609,7 +821,7 @@ signinComponent =
 _menu :: Proxy "menu"
 _menu = Proxy
 
-data MenuOutput = SignOut
+data MenuOutput = MenuOutputSignOut | MenuOutputDrawSettings
 
 menuComponent
   :: forall query m
@@ -654,9 +866,15 @@ menuComponent =
               [ HH.button
                   [ HP.class_ $ wrap "menu-item"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken SignOut
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuOutputSignOut
                   ]
                   [ HH.text "Sign out" ]
+              , HH.button
+                  [ HP.class_ $ wrap "menu-item"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuOutputDrawSettings
+                  ]
+                  [ HH.text "Drawing settings" ]
               ]
           ]
       ]
@@ -722,12 +940,16 @@ data AppState
       , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
       , fields :: NonEmptyList.NonEmptyList Field.Field
       }
+  | AppStateDrawSettings
   | AppStateLocalGame
       { config :: Message.GameConfig
       , puttingTime :: Instant.Instant
       , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
       , fields :: NonEmptyList.NonEmptyList Field.Field
       }
+
+drawSettingsKey :: String
+drawSettingsKey = "draw-settings"
 
 appComponent
   :: forall m
@@ -740,6 +962,7 @@ appComponent =
     games /\ gamesId <- Hooks.useState input.games
     players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
+    drawSettings /\ drawSettingsId <- UsePersistentState.usePersistentState drawSettingsKey defaultDrawSettings
     state /\ stateId <- Hooks.useState AppStateEmpty
 
     Hooks.useLifecycleEffect do
@@ -909,7 +1132,7 @@ appComponent =
                     , HH.fromPlainHTML $ svgDot "black"
                     , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
                     ]
-                AppStateEmpty -> []
+                _ -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
@@ -931,10 +1154,14 @@ appComponent =
                         menuComponent
                         player
                         case _ of
-                          SignOut -> do
+                          MenuOutputSignOut -> do
                             Hooks.raise outputToken Message.SignOutRequest
                             Hooks.put activePlayerIdId Maybe.Nothing
                             liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
+                          MenuOutputDrawSettings -> do
+                            Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                            Hooks.put watchingGameIdId Maybe.Nothing
+                            Hooks.put stateId AppStateDrawSettings
                     ]
             ]
         , HH.div
@@ -991,7 +1218,7 @@ appComponent =
                           _field
                           unit
                           fieldComponent
-                          { fields: game.fields, pointer }
+                          { fields: game.fields, pointer, drawSettings }
                           \(Click (Tuple x y)) -> when pointer do
                             now' <- liftEffect $ Now.now
                             let
@@ -1016,7 +1243,7 @@ appComponent =
                           _field
                           unit
                           fieldComponent
-                          { fields: game.fields, pointer: true }
+                          { fields: game.fields, pointer: true, drawSettings }
                           \(Click (Tuple x y)) -> do
                             now' <- liftEffect $ Now.now
                             let
@@ -1033,6 +1260,16 @@ appComponent =
                                   $ Field.putPoint (Tuple x y) nextPlayer
                                   $ NonEmptyList.head game.fields
                               }
+                    AppStateDrawSettings ->
+                      HH.slot
+                        _drawSettings
+                        unit
+                        drawSettingsComponent
+                        drawSettings
+                        case _ of
+                          UpdateSettings settings -> do
+                            UsePersistentState.put drawSettingsKey drawSettingsId settings
+                            Hooks.put stateId AppStateEmpty
                     AppStateEmpty ->
                       HH.slot
                         _createGame

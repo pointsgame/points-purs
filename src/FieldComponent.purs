@@ -26,7 +26,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, defaultDrawSettings, draw, drawPointer, fromToFieldPos, mergedSurroundings)
+import Render (DrawSettings, draw, drawPointer, fromToFieldPos, mergedSurroundings)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -62,7 +62,7 @@ toPos canvas field drawSettings scale x y = do
     posY = toGamePosY $ y * scale
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
 
-type Input = { fields :: NonEmptyList Field, pointer :: Boolean }
+type Input = { fields :: NonEmptyList Field, pointer :: Boolean, drawSettings :: DrawSettings }
 
 data Output = Click Pos
 
@@ -74,8 +74,13 @@ fieldComponent
   => H.Component Redraw Input Output m
 fieldComponent =
   Hooks.component \{ queryToken, outputToken } input -> Hooks.do
-    surroundings <- Hooks.captures { field: NonEmptyList.head input.fields } $ flip Hooks.useMemo \_ ->
-      mergedSurroundings defaultDrawSettings.fullFill defaultDrawSettings.innerSurroundings input.fields
+    surroundings <-
+      Hooks.captures
+        { field: NonEmptyList.head input.fields
+        , fullFill: input.drawSettings.fullFill
+        , innerSurroundings: input.drawSettings.innerSurroundings
+        } $ flip Hooks.useMemo \_ ->
+        mergedSurroundings input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
 
     size /\ sizeId <- Hooks.useState Nothing
 
@@ -99,7 +104,7 @@ fieldComponent =
           (Event.target >=> Window.fromEventTarget >>> map (const setSize))
       pure $ Just $ Hooks.unsubscribe subscriptionId
 
-    Hooks.captures { size, field: NonEmptyList.head input.fields } Hooks.useTickEffect do
+    Hooks.captures { size, field: NonEmptyList.head input.fields, drawSettings: input.drawSettings } Hooks.useTickEffect do
       let
         setCanvasSize canvas = for_ size \{ width, height } -> do
           window <- HTML.window
@@ -111,7 +116,7 @@ fieldComponent =
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2DThatWillReadFrequently canvas
-        draw defaultDrawSettings surroundings width height input.fields context
+        draw input.drawSettings surroundings width height input.fields context
         bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
           setCanvasSize canvasPointer
       pure Nothing
@@ -148,7 +153,7 @@ fieldComponent =
                   window <- lift HTML.window
                   let dpr = devicePixelRatio window
                   canvas <- wrap $ getCanvasElementById "canvas-pointer"
-                  wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings dpr (offsetX e) (offsetY e)
+                  wrap $ toPos canvas (NonEmptyList.head input.fields) input.drawSettings dpr (offsetX e) (offsetY e)
                 when (Field.isPuttingAllowed (NonEmptyList.head input.fields) pos)
                   $ lift
                   $ Hooks.raise outputToken
@@ -160,7 +165,7 @@ fieldComponent =
                 width <- lift $ getCanvasWidth canvas
                 height <- lift $ getCanvasHeight canvas
                 context <- lift $ getContext2D canvas
-                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) defaultDrawSettings dpr (offsetX e) (offsetY e)
-                lift $ drawPointer defaultDrawSettings width height input.fields pos context
+                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) input.drawSettings dpr (offsetX e) (offsetY e)
+                lift $ drawPointer input.drawSettings width height input.fields pos context
             ]
         ]
