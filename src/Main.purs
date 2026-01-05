@@ -259,6 +259,7 @@ playersComponent =
 
 buttonStyle :: CSS.CSS
 buttonStyle = do
+  CSS.width (CSS.pct 100.0)
   traverse_ CSS.color $ CSS.fromHexString "#333"
   CSS.key (CSS.fromString "border") "none"
   CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
