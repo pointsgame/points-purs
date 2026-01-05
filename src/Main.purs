@@ -721,164 +721,153 @@ menuOnMouseLeave = liftEffect $ do
     classes <- lift $ Element.classList menu
     lift $ DOMTokenList.remove classes "closed"
 
-data SignInOutput = SignIn Boolean | SignInTest String
-
-signinComponent
-  :: forall query input m
-   . MonadAff m
-  => H.Component query input SignInOutput m
-signinComponent =
-  Hooks.component \{ outputToken } _ -> Hooks.do
-    Hooks.pure $ HH.div
-      [ HP.id "menu"
-      , HCSS.style $ CSS.position $ CSS.relative
-      ]
-      [ HH.div
-          [ HCSS.style $ CSS.cursor CSSCursor.pointer
-          , HE.onClick $ const menuOnClick
-          , HE.onMouseLeave $ const menuOnMouseLeave
-          ]
-          [ HH.fromPlainHTML svgMenu ]
-      , HH.div
-          [ HP.id "menu-list"
-          , HCSS.style do
-              CSS.position CSS.absolute
-              CSS.top $ CSS.pct 100.0
-              CSS.right $ CSS.px 0.0
-              traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
-              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-              CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
-              CSS.zIndex 1
-              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
-          ] $
-          [ if not testBuild then
-              HH.div
-                [ HCSS.style do
-                    traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                    CSS.marginBottom $ CSS.px 5.0
-                ]
-                [ HH.button
-                    [ HP.class_ $ wrap "menu-item"
-                    , HCSS.style do
-                        buttonStyle
-                        CSS.width $ CSS.pct 100.0
-                    , HE.onClick $ const $
-                        let
-                          rememebrMeEff =
-                            liftEffect $ do
-                              window <- HTML.window
-                              document <- Window.document window
-                              maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode document)
-                              Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
-                        in
-                          rememebrMeEff >>= (Hooks.raise outputToken <<< SignIn)
-                    ]
-                    [ HH.text "Sign in" ]
-                ]
-            else
-              HH.div
-                [ HCSS.style do
-                    traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                    CSS.marginBottom $ CSS.px 5.0
-                ]
-                [ HH.input
-                    [ HP.id "test-name"
-                    , HCSS.style do
-                        CSS.width $ CSS.pct 100.0
-                        CSS.boxSizing $ CSS.fromString "border-box"
-                        CSS.marginBottom $ CSS.px 5.0
-                    , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
-                        maybeName <- liftEffect do
-                          window <- HTML.window
-                          document <- Window.document window
-                          maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode document)
-                          traverse HTMLInputElement.value maybeInput
-                        for_ maybeName \name -> do
-                          Hooks.raise outputToken $ SignInTest name
-                    ]
-                ]
-          , HH.div
-              [ HCSS.style $ CSS.display CSS.flex
-              ]
-              [ HH.input
-                  [ HP.id "remember-me"
-                  , HP.type_ HP.InputCheckbox
-                  , HP.checked true
-                  , HCSS.style $ CSS.margin (CSS.px 0.0) (CSS.px 3.0) (CSS.px 0.0) (CSS.px 0.0)
-                  ]
-              , HH.label
-                  [ HP.for "remember-me"
-                  , HCSS.style $ do
-                      CSS.fontSize (CSS.rem 0.75)
-                      CSS.key (CSS.fromString "white-space") "nowrap"
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
-                  ]
-                  [ HH.text "Remember me" ]
-              ]
-          ]
-      ]
-
 _menu :: Proxy "menu"
 _menu = Proxy
 
-data MenuOutput = MenuOutputSignOut | MenuOutputDrawSettings
+-- Combined output union
+data MenuOutput
+  = MenuSignIn Boolean
+  | MenuSignInTest String
+  | MenuSignOut
+  | MenuDrawSettings
 
 menuComponent
   :: forall query m
    . MonadAff m
-  => H.Component query Message.Player MenuOutput m
-menuComponent =
-  Hooks.component \{ outputToken } player -> Hooks.do
-    Hooks.pure $ HH.div
-      [ HP.id "menu"
-      , HCSS.style $ CSS.position $ CSS.relative
-      ]
-      [ HH.div
-          [ HCSS.style $ CSS.cursor CSSCursor.pointer
-          , HE.onClick $ const menuOnClick
-          , HE.onMouseLeave $ const menuOnMouseLeave
-          ]
-          [ HH.label
-              [ HCSS.style do
-                  CSS.cursor CSSCursor.pointer
-                  CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
-                  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-                  traverse_ CSS.color $ CSS.fromHexString "#333"
+  => H.Component query (Maybe Message.Player) MenuOutput m
+menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
+  Hooks.pure $ HH.div
+    [ HP.id "menu"
+    , HCSS.style $ CSS.position $ CSS.relative
+    ]
+    [ HH.div
+        [ HCSS.style $ CSS.cursor CSSCursor.pointer
+        , HE.onClick $ const menuOnClick
+        , HE.onMouseLeave $ const menuOnMouseLeave
+        ] $
+        Maybe.maybe
+          -- only icon when logged out
+          [ HH.fromPlainHTML svgMenu ]
+          ( \player ->
+              -- show player label + icon when logged in
+              [ HH.label
+                  [ HCSS.style do
+                      CSS.cursor CSSCursor.pointer
+                      CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+                      CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
+                      traverse_ CSS.color $ CSS.fromHexString "#333"
+                  ]
+                  [ HH.text player.nickname ]
+              , HH.fromPlainHTML svgMenu
               ]
-              [ HH.text player.nickname
-              ]
-          , HH.fromPlainHTML svgMenu
-          ]
-      , HH.div
-          [ HP.id "menu-list"
-          , HCSS.style do
-              CSS.position CSS.absolute
-              CSS.top $ CSS.pct 100.0
-              CSS.right $ CSS.px 0.0
-              traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
-              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-              CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
-              CSS.zIndex 1
-              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
-          ]
-          [ HH.div_
+          )
+          maybePlayer
+    , HH.div
+        [ HP.id "menu-list"
+        , HCSS.style do
+            CSS.position CSS.absolute
+            CSS.top $ CSS.pct 100.0
+            CSS.right $ CSS.px 0.0
+            traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
+            traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
+            CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
+            CSS.zIndex 1
+            CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+            CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
+        ]
+        [ if Maybe.isJust maybePlayer then
+            -- logged-in menu: Sign out + Drawing settings
+            HH.div_
               [ HH.button
                   [ HP.class_ $ wrap "menu-item"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuOutputSignOut
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuSignOut
                   ]
                   [ HH.text "Sign out" ]
               , HH.button
                   [ HP.class_ $ wrap "menu-item"
                   , HCSS.style buttonStyle
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuOutputDrawSettings
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
                   ]
                   [ HH.text "Drawing settings" ]
               ]
-          ]
-      ]
+          else
+            -- logged-out menu: Sign in (or test input) + Remember me + Drawing settings
+            HH.div_ $
+              ( if not testBuild then
+                  -- normal sign-in button
+                  [ HH.button
+                      [ HP.class_ $ wrap "menu-item"
+                      , HCSS.style do
+                          buttonStyle
+                          CSS.width $ CSS.pct 100.0
+                      , HE.onClick $ const $
+                          let
+                            rememebrMeEff =
+                              liftEffect $ do
+                                w <- HTML.window
+                                d <- Window.document w
+                                maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode d)
+                                Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
+                          in
+                            rememebrMeEff >>= (Hooks.raise outputToken <<< MenuSignIn)
+                      ]
+                      [ HH.text "Sign in" ]
+                  ]
+                else
+                  -- test build: text input to enter a name
+                  [ HH.input
+                      [ HP.id "test-name"
+                      , HCSS.style do
+                          CSS.width $ CSS.pct 100.0
+                          CSS.boxSizing $ CSS.fromString "border-box"
+                          CSS.marginBottom $ CSS.px 5.0
+                      , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
+                          maybeName <- liftEffect do
+                            w <- HTML.window
+                            d <- Window.document w
+                            maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode d)
+                            traverse HTMLInputElement.value maybeInput
+                          for_ maybeName \name -> Hooks.raise outputToken $ MenuSignInTest name
+                      ]
+                  ]
+              )
+                <>
+                  -- remember-me checkbox + label and drawing settings button
+                  [ HH.div
+                      [ HCSS.style do
+                          CSS.width $ CSS.pct 100.0
+                          CSS.display CSS.flex
+                          CSS.justifyContent CSSCommon.center
+                          CSS.padding (CSS.px 5.0) (CSS.px 0.0) (CSS.px 5.0) (CSS.px 0.0)
+                      ]
+                      [ HH.input
+                          [ HP.id "remember-me"
+                          , HP.type_ HP.InputCheckbox
+                          , HP.checked true
+                          , HCSS.style do
+                              CSS.margin (CSS.px 0.0) (CSS.px 3.0) (CSS.px 0.0) (CSS.px 0.0)
+                              CSS.cursor CSSCursor.pointer
+                          ]
+                      , HH.label
+                          [ HP.for "remember-me"
+                          , HCSS.style $ do
+                              CSS.fontSize (CSS.rem 0.75)
+                              CSS.key (CSS.fromString "white-space") "nowrap"
+                              traverse_ CSS.color $ CSS.fromHexString "#333"
+                              CSS.cursor CSSCursor.pointer
+                          ]
+                          [ HH.text "Remember me" ]
+                      ]
+                  , HH.button
+                      [ HP.class_ $ wrap "menu-item"
+                      , HCSS.style buttonStyle
+                      , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
+                      ]
+                      [ HH.text "Drawing settings" ]
+                  ]
+        ]
+    ]
 
 _field :: Proxy "field"
 _field = Proxy
@@ -1137,33 +1126,25 @@ appComponent =
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
                 ]
-                case activePlayerId >>= \playerId -> Map.lookup playerId players of
-                  Maybe.Nothing ->
-                    [ HH.slot
-                        _signin
-                        unit
-                        signinComponent
-                        unit
-                        case _ of
-                          SignIn rememberMe -> Hooks.raise outputToken $ Message.GetAuthUrlRequest rememberMe
-                          SignInTest name -> Hooks.raise outputToken $ Message.AuthTestRequest name
-                    ]
-                  Maybe.Just player ->
-                    [ HH.slot
-                        _menu
-                        unit
-                        menuComponent
-                        player
-                        case _ of
-                          MenuOutputSignOut -> do
-                            Hooks.raise outputToken Message.SignOutRequest
-                            Hooks.put activePlayerIdId Maybe.Nothing
-                            liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
-                          MenuOutputDrawSettings -> do
-                            Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
-                            Hooks.put watchingGameIdId Maybe.Nothing
-                            Hooks.put stateId AppStateDrawSettings
-                    ]
+                [ HH.slot
+                    _menu
+                    unit
+                    menuComponent
+                    (activePlayerId >>= \playerId -> Map.lookup playerId players)
+                    case _ of
+                      MenuSignIn rememberMe ->
+                        Hooks.raise outputToken $ Message.GetAuthUrlRequest rememberMe
+                      MenuSignInTest name ->
+                        Hooks.raise outputToken $ Message.AuthTestRequest name
+                      MenuSignOut -> do
+                        Hooks.raise outputToken Message.SignOutRequest
+                        Hooks.put activePlayerIdId Maybe.Nothing
+                        liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
+                      MenuDrawSettings -> do
+                        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                        Hooks.put watchingGameIdId Maybe.Nothing
+                        Hooks.put stateId AppStateDrawSettings
+                ]
             ]
         , HH.div
             [ HCSS.style do
