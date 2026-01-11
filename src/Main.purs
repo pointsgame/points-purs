@@ -274,7 +274,12 @@ previewFields =
     empty = Field.emptyField 10 10
     -- A small setup with a Red enclosure capturing Black points
     moves =
-      [ (2 /\ 2) /\ Player.Red
+      [ -- Captured Black points
+        (3 /\ 3) /\ Player.Black
+      , (4 /\ 3) /\ Player.Black
+      , (3 /\ 4) /\ Player.Black
+      -- Capturing red points
+      , (2 /\ 2) /\ Player.Red
       , (3 /\ 2) /\ Player.Red
       , (4 /\ 2) /\ Player.Red
       , (5 /\ 3) /\ Player.Red
@@ -283,14 +288,11 @@ previewFields =
       , (3 /\ 5) /\ Player.Red
       , (2 /\ 4) /\ Player.Red
       , (2 /\ 3) /\ Player.Red
-      -- Captured Black points
-      , (3 /\ 3) /\ Player.Black
-      , (4 /\ 3) /\ Player.Black
-      , (3 /\ 4) /\ Player.Black
       -- Loose points
       , (7 /\ 7) /\ Player.Red
       , (8 /\ 8) /\ Player.Black
       , (1 /\ 8) /\ Player.Black
+      , (2 /\ 8) /\ Player.Black
       ]
   in
     Array.foldl
