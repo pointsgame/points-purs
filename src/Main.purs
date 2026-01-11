@@ -267,6 +267,44 @@ buttonStyle = do
   CSS.cursor CSSCursor.pointer
   CSS.key (CSS.fromString "white-space") "nowrap"
 
+-- Hardcoded moves for the preview field to show off surroundings and points
+previewFields :: NonEmptyList.NonEmptyList Field.Field
+previewFields =
+  let
+    empty = Field.emptyField 10 10
+    -- A small setup with a Red enclosure capturing Black points
+    moves =
+      [ (2 /\ 2) /\ Player.Red
+      , (3 /\ 2) /\ Player.Red
+      , (4 /\ 2) /\ Player.Red
+      , (5 /\ 3) /\ Player.Red
+      , (5 /\ 4) /\ Player.Red
+      , (4 /\ 5) /\ Player.Red
+      , (3 /\ 5) /\ Player.Red
+      , (2 /\ 4) /\ Player.Red
+      , (2 /\ 3) /\ Player.Red
+      -- Captured Black points
+      , (3 /\ 3) /\ Player.Black
+      , (4 /\ 3) /\ Player.Black
+      , (3 /\ 4) /\ Player.Black
+      -- Loose points
+      , (7 /\ 7) /\ Player.Red
+      , (8 /\ 8) /\ Player.Black
+      , (1 /\ 8) /\ Player.Black
+      ]
+  in
+    Array.foldl
+      ( \fields (coord /\ player) ->
+          Maybe.maybe fields (_ `NonEmptyList.cons` fields)
+            $ Field.putPoint coord player
+            $ NonEmptyList.head fields
+      )
+      (NonEmptyList.singleton empty)
+      moves
+
+_previewField :: Proxy "previewField"
+_previewField = Proxy
+
 _drawSettings :: Proxy "drawSettings"
 _drawSettings = Proxy
 
@@ -277,13 +315,15 @@ drawSettingsComponent
    . MonadAff m
   => H.Component query DrawSettings SettingsOutput m
 drawSettingsComponent =
-  Hooks.component \{ outputToken } settings -> Hooks.do
+  Hooks.component \{ outputToken } initialSettings -> Hooks.do
+    settings /\ settingsId <- Hooks.useState initialSettings
+
     let
       borderColor = CSS.fromHexString "#dee2e6"
       primaryBtnColor = CSS.fromHexString "#e9ecef"
 
       -- Helper to render a generic row (Number/Int/String/Color)
-      renderInputRow id label inputType val minVal maxVal stepVal =
+      renderInputRow label inputType val minVal maxVal stepVal onChange =
         HH.tr_
           [ HH.td
               [ HCSS.style do
@@ -294,9 +334,9 @@ drawSettingsComponent =
           , HH.td
               [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
               [ HH.input $
-                  [ HP.id id
-                  , HP.type_ inputType
+                  [ HP.type_ inputType
                   , HP.value val
+                  , HE.onValueInput onChange
                   , HCSS.style do
                       CSS.width (CSS.px 60.0)
                       CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
@@ -312,7 +352,7 @@ drawSettingsComponent =
           ]
 
       -- Helper to render a Checkbox row
-      renderCheckboxRow id label isChecked =
+      renderCheckboxRow label isChecked onToggle =
         HH.tr_
           [ HH.td
               [ HCSS.style do
@@ -323,9 +363,9 @@ drawSettingsComponent =
           , HH.td
               [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
               [ HH.input
-                  [ HP.id id
-                  , HP.type_ HP.InputCheckbox
+                  [ HP.type_ HP.InputCheckbox
                   , HP.checked isChecked
+                  , HE.onChecked \_ -> onToggle (not isChecked)
                   , HCSS.style do
                       CSS.width (CSS.px 18.0)
                       CSS.height (CSS.px 18.0)
@@ -367,38 +407,80 @@ drawSettingsComponent =
               CSS.backgroundColor CSS.white
               CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
           ]
-          [ -- Config Grid
+          [ -- Main Layout: Settings inputs (left) + Preview (right)
             HH.div
               [ HCSS.style do
                   CSS.display CSS.flex
-                  CSS.marginBottom (CSS.px 30.0)
+                  CSS.flexDirection CSS.row
+                  CSS.alignItems CSS.flexStart
               ]
-              [ -- Column 1: Appearance & Options
+              [ -- LEFT COLUMN: Settings Inputs
                 HH.div
-                  [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
-                  [ renderHeader "Appearance"
-                  , HH.table_
-                      [ renderInputRow "gridThickness" "Grid Thickness" HP.InputNumber (show settings.gridThickness) (Maybe.Just 1.0) (Maybe.Just 5.0) (Maybe.Just $ Step 1.0)
-                      , renderInputRow "pointRadius" "Point Radius" HP.InputNumber (show settings.pointRadius) (Maybe.Just 0.1) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
-                      , renderInputRow "fillingAlpha" "Opacity" HP.InputNumber (show settings.fillingAlpha) (Maybe.Just 0.0) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
+                  [ HCSS.style do
+                      CSS.display CSS.flex
+                      CSS.marginBottom (CSS.px 30.0)
+                  ]
+                  [ -- Sub-column 1: Appearance & Options
+                    HH.div
+                      [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
+                      [ renderHeader "Appearance"
+                      , HH.table_
+                          [ renderInputRow "Grid Thickness" HP.InputNumber (show settings.gridThickness) (Maybe.Just 1.0) (Maybe.Just 5.0) (Maybe.Just $ Step 1.0)
+                              \s -> traverse_ (\v -> Hooks.modify_ settingsId _ { gridThickness = v }) (Int.fromString s)
+                          , renderInputRow "Point Radius" HP.InputNumber (show settings.pointRadius) (Maybe.Just 0.1) (Maybe.Just 5.0) (Maybe.Just $ Step 0.1)
+                              \s -> traverse_ (\v -> Hooks.modify_ settingsId _ { pointRadius = v }) (Number.fromString s)
+                          , renderInputRow "Opacity" HP.InputNumber (show settings.fillingAlpha) (Maybe.Just 0.0) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
+                              \s -> traverse_ (\v -> Hooks.modify_ settingsId _ { fillingAlpha = v }) (Number.fromString s)
+                          ]
+                      , HH.div [ HCSS.style $ CSS.marginTop (CSS.px 20.0) ] []
+                      , renderHeader "Options"
+                      , HH.table_
+                          [ renderCheckboxRow "Full Fill" settings.fullFill (\v -> Hooks.modify_ settingsId _ { fullFill = v })
+                          , renderCheckboxRow "Extended Fill" settings.extendedFill (\v -> Hooks.modify_ settingsId _ { extendedFill = v })
+                          , renderCheckboxRow "Inner Surroundings" settings.innerSurroundings (\v -> Hooks.modify_ settingsId _ { innerSurroundings = v })
+                          , renderCheckboxRow "H-Reflection" settings.hReflection (\v -> Hooks.modify_ settingsId _ { hReflection = v })
+                          , renderCheckboxRow "V-Reflection" settings.vReflection (\v -> Hooks.modify_ settingsId _ { vReflection = v })
+                          ]
                       ]
-                  , HH.div [ HCSS.style $ CSS.marginTop (CSS.px 20.0) ] []
-                  , renderHeader "Options"
-                  , HH.table_
-                      [ renderCheckboxRow "fullFill" "Full Fill" settings.fullFill
-                      , renderCheckboxRow "extendedFill" "Extended Fill" settings.extendedFill
-                      , renderCheckboxRow "innerSurroundings" "Inner Surroundings" settings.innerSurroundings
-                      , renderCheckboxRow "hReflection" "H-Reflection" settings.hReflection
-                      , renderCheckboxRow "vReflection" "V-Reflection" settings.vReflection
+                  , -- Sub-column 2: Colors
+                    HH.div_
+                      [ renderHeader "Colors"
+                      , HH.table_
+                          [ renderInputRow "Grid" HP.InputColor settings.gridColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                              \v -> Hooks.modify_ settingsId _ { gridColor = v }
+                          , renderInputRow "Red Player" HP.InputColor settings.redColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                              \v -> Hooks.modify_ settingsId _ { redColor = v }
+                          , renderInputRow "Black Player" HP.InputColor settings.blackColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+                              \v -> Hooks.modify_ settingsId _ { blackColor = v }
+                          ]
                       ]
                   ]
-              , -- Column 2: Colors
-                HH.div_
-                  [ renderHeader "Colors"
-                  , HH.table_
-                      [ renderInputRow "gridColor" "Grid" HP.InputColor settings.gridColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
-                      , renderInputRow "redColor" "Red Player" HP.InputColor settings.redColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
-                      , renderInputRow "blackColor" "Black Player" HP.InputColor settings.blackColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
+              , -- RIGHT COLUMN: Live Preview
+                HH.div
+                  [ HCSS.style do
+                      CSS.marginLeft (CSS.px 40.0)
+                      CSS.paddingLeft (CSS.px 40.0)
+                      traverse_ (CSS.borderLeft CSS.solid (CSS.px 1.0)) borderColor
+                  ]
+                  [ renderHeader "Preview"
+                  , HH.div
+                      [ HCSS.style do
+                          CSS.width (CSS.px 300.0)
+                          CSS.height (CSS.px 300.0)
+                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
+                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                          CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 2.0) (CSS.px 6.0) NonEmpty.:| []
+                          CSS.backgroundColor CSS.white
+                      ]
+                      [ HH.slot
+                          _previewField
+                          unit
+                          fieldComponent
+                          { fields: previewFields
+                          , pointer: false
+                          , drawSettings: settings
+                          }
+                          (const (pure unit))
                       ]
                   ]
               ]
@@ -418,60 +500,7 @@ drawSettingsComponent =
                       CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
                       CSS.cursor CSSCursor.pointer
                       CSS.fontWeight CSS.bold
-                  , HE.onClick $ const $ do
-                      window <- liftEffect $ HTML.window
-                      document <- liftEffect $ Window.document window
-                      let
-                        document' = Document.toNonElementParentNode document
-
-                        -- Helper to get generic value
-                        getValue id = mapMaybeT liftEffect $ do
-                          elem <- wrap $ getElementById id document'
-                          input <- MaybeT $ pure $ HTMLInputElement.fromElement elem
-                          lift $ HTMLInputElement.value input
-
-                        -- Helper for Int
-                        getInt id = do
-                          val <- getValue id
-                          MaybeT $ pure $ Int.fromString val
-
-                        -- Helper for Number
-                        getNumber id = do
-                          val <- getValue id
-                          MaybeT $ pure $ Number.fromString val
-
-                        -- Helper for Checkboxes
-                        getChecked id = mapMaybeT liftEffect $ do
-                          elem <- wrap $ getElementById id document'
-                          input <- MaybeT $ pure $ HTMLInputElement.fromElement elem
-                          lift $ HTMLInputElement.checked input
-
-                      void $ runMaybeT $ do
-                        hReflection <- getChecked "hReflection"
-                        vReflection <- getChecked "vReflection"
-                        fullFill <- getChecked "fullFill"
-                        extendedFill <- getChecked "extendedFill"
-                        innerSurroundings <- getChecked "innerSurroundings"
-                        gridThickness <- getInt "gridThickness"
-                        pointRadius <- getNumber "pointRadius"
-                        fillingAlpha <- getNumber "fillingAlpha"
-                        gridColor <- getValue "gridColor"
-                        redColor <- getValue "redColor"
-                        blackColor <- getValue "blackColor"
-
-                        lift $ Hooks.raise outputToken $ UpdateSettings
-                          { hReflection
-                          , vReflection
-                          , fullFill
-                          , extendedFill
-                          , innerSurroundings
-                          , gridThickness
-                          , pointRadius
-                          , fillingAlpha
-                          , gridColor
-                          , redColor
-                          , blackColor
-                          }
+                  , HE.onClick $ const $ Hooks.raise outputToken $ UpdateSettings settings
                   ]
                   [ HH.text "Update Settings" ]
               ]
