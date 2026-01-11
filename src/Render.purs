@@ -2,6 +2,7 @@ module Render where
 
 import Prelude
 
+import Control.Bind (bindFlipped)
 import Control.Monad.Writer (execWriter, tell)
 import Data.Foldable (traverse_, for_)
 import Data.Function (applyFlipped)
@@ -14,9 +15,10 @@ import Data.Maybe (maybe)
 import Data.Maybe as Maybe
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (unwrap)
-import Data.Number (pi)
+import Data.Number (pi, sqrt)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
+import Data.Tuple as Tuple
 import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
@@ -36,6 +38,7 @@ type DrawSettings =
   , pointRadius :: Number
   , fillingAlpha :: Number
   , fullFill :: Boolean
+  , extendedFill :: Boolean
   , innerSurroundings :: Boolean
   }
 
@@ -50,6 +53,7 @@ defaultDrawSettings =
   , pointRadius: 1.0
   , fillingAlpha: 0.5
   , fullFill: true
+  , extendedFill: true
   , innerSurroundings: true
   }
 
@@ -173,6 +177,41 @@ surroundings fullFill innerSurroundings fields =
 mergedSurroundings :: Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
 mergedSurroundings fullFill innerSurroundings fields = connectHoles $ merge $ surroundings fullFill innerSurroundings fields
 
+polygonShift :: Partial => Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
+polygonShift r pos nextPos =
+  let
+    dx = Tuple.fst pos - Tuple.fst nextPos
+    dy = Tuple.snd pos - Tuple.snd nextPos
+    rs = r / sqrt 2.0
+  in
+    case dx, dy of
+      -1, -1 -> (0.0 /\ -r) /\ (-r /\ 0.0)
+      0, -1 -> (-rs /\ 0.0) /\ (-rs /\ 0.0)
+      1, -1 -> (0.0 /\ r) /\ (-r /\ 0.0)
+      1, 0 -> (0.0 /\ rs) /\ (0.0 /\ rs)
+      1, 1 -> (0.0 /\ r) /\ (r /\ 0.0)
+      0, 1 -> (rs /\ 0.0) /\ (rs /\ 0.0)
+      (-1), 1 -> (r /\ 0.0) /\ (0.0 /\ -r)
+      (-1), 0 -> (0.0 /\ -rs) /\ (0.0 /\ -rs)
+
+polygonShiftWide :: Partial => Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
+polygonShiftWide r pos nextPos =
+  let
+    dx = Tuple.fst pos - Tuple.fst nextPos
+    dy = Tuple.snd pos - Tuple.snd nextPos
+    rs = r / sqrt 2.0
+    s = case dx, dy of
+      -1, -1 -> (-rs /\ -rs)
+      0, -1 -> (-r /\ 0.0)
+      1, -1 -> (-rs /\ rs)
+      1, 0 -> (0.0 /\ r)
+      1, 1 -> (rs /\ rs)
+      0, 1 -> (r /\ 0.0)
+      (-1), 1 -> (rs /\ -rs)
+      (-1), 0 -> (0.0 /\ -r)
+  in
+    s /\ s
+
 draw :: DrawSettings -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   { hReflection
@@ -183,6 +222,7 @@ draw
   , blackColor
   , pointRadius
   , fillingAlpha
+  , extendedFill
   }
   surroundings'
   width
@@ -231,15 +271,29 @@ draw
       stroke context
     -- Rendering surroundings.
     setGlobalAlpha context fillingAlpha
+    let
+      toPolygon surrounding =
+        if extendedFill then
+          bindFlipped
+            ( \(Tuple pos nextPos) ->
+                let
+                  shift1 /\ shift2 = UnsafePartial.unsafePartial $ polygonShift (pointRadius * scale / 5.0) pos nextPos
+                in
+                  (fromPos pos + shift1) : (fromPos nextPos + shift2) : Nil
+            )
+            $ List.zip (NonEmptyList.toList surrounding)
+            $ NonEmptyList.tail surrounding <> List.singleton (NonEmptyList.head surrounding)
+        else
+          map fromPos $ NonEmptyList.tail surrounding
     for_ surroundings' \(Tuple surrounding holes) -> do
       setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
       beginPath context
       uncurry (moveTo context) $ fromPos $ NonEmptyList.head surrounding
-      traverse_ (uncurry (lineTo context)) $ map fromPos $ NonEmptyList.tail surrounding
+      traverse_ (uncurry (lineTo context)) $ toPolygon surrounding
       closePath context
       for_ holes \hole -> do
         uncurry (moveTo context) $ fromPos $ NonEmptyList.head hole
-        traverse_ (uncurry (lineTo context)) $ map fromPos $ NonEmptyList.tail hole
+        traverse_ (uncurry (lineTo context)) $ toPolygon hole
         closePath context
       fill context
 

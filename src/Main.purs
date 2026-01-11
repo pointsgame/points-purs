@@ -386,6 +386,7 @@ drawSettingsComponent =
                   , renderHeader "Options"
                   , HH.table_
                       [ renderCheckboxRow "fullFill" "Full Fill" settings.fullFill
+                      , renderCheckboxRow "extendedFill" "Extended Fill" settings.extendedFill
                       , renderCheckboxRow "innerSurroundings" "Inner Surroundings" settings.innerSurroundings
                       , renderCheckboxRow "hReflection" "H-Reflection" settings.hReflection
                       , renderCheckboxRow "vReflection" "V-Reflection" settings.vReflection
@@ -449,6 +450,7 @@ drawSettingsComponent =
                         hReflection <- getChecked "hReflection"
                         vReflection <- getChecked "vReflection"
                         fullFill <- getChecked "fullFill"
+                        extendedFill <- getChecked "extendedFill"
                         innerSurroundings <- getChecked "innerSurroundings"
                         gridThickness <- getInt "gridThickness"
                         pointRadius <- getNumber "pointRadius"
@@ -461,6 +463,7 @@ drawSettingsComponent =
                           { hReflection
                           , vReflection
                           , fullFill
+                          , extendedFill
                           , innerSurroundings
                           , gridThickness
                           , pointRadius
