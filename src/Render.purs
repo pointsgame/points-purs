@@ -307,6 +307,7 @@ draw
             fill context
     -- Rendering surroundings.
     let
+      reflectShift (x /\ y) = x * (if hReflection then -1.0 else 1.0) /\ y * (if vReflection then -1.0 else 1.0)
       toPolygon surrounding =
         if extendedFill then
           bindFlipped
@@ -314,7 +315,7 @@ draw
                 let
                   shift1 /\ shift2 = UnsafePartial.unsafePartial $ polygonShift (pointRadius * scale / 5.0) pos nextPos
                 in
-                  (fromPos pos + shift1) : (fromPos nextPos + shift2) : Nil
+                  (fromPos pos + reflectShift shift1) : (fromPos nextPos + reflectShift shift2) : Nil
             )
             $ List.zip (NonEmptyList.toList surrounding)
             $ NonEmptyList.tail surrounding <> List.singleton (NonEmptyList.head surrounding)
