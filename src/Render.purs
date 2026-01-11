@@ -240,10 +240,10 @@ draw
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
-    -- Rendering background.
+    -- Render background.
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
-    -- Rendering grig.
+    -- Render grig.
     setLineWidth context $ toNumber gridThickness
     setStrokeStyle context gridColor
     for_ verticalLines \x -> do
@@ -256,21 +256,56 @@ draw
       moveTo context shiftX y
       lineTo context (shiftX + width') y
       stroke context
-    -- Rendering points.
+    -- Render points.
     for_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setFillStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       fill context
-    -- Rendering last point.
+    -- Render last point.
     for_ (List.head $ Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setLineWidth context 2.0
       setStrokeStyle context $ if player == Player.Red then redColor else blackColor
       arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 3.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
       stroke context
-    -- Rendering surroundings.
+    -- Render lines.
     setGlobalAlpha context fillingAlpha
+    when extendedFill do
+      let rs = pointRadius * scale / 5.0 / sqrt 2.0
+      for_ (Field.moves headField) \(Tuple pos player) -> do
+        setFillStyle context $ if player == Player.Red then redColor else blackColor
+        when
+          ( Field.isPlayer headField (Field.e pos) player
+              && not (Field.isOwner headField (Field.n pos) player)
+              && not (Field.isOwner headField (Field.s pos) player)
+              && not (Field.isOwner headField (Field.ne pos) player)
+              && not (Field.isOwner headField (Field.se pos) player)
+          )
+          do
+            beginPath context
+            uncurry (moveTo context) $ ((+) (0.0 /\ -rs)) $ fromPos pos
+            uncurry (lineTo context) $ ((+) (0.0 /\ -rs)) $ fromPos $ Field.e pos
+            uncurry (lineTo context) $ ((+) (0.0 /\ rs)) $ fromPos $ Field.e pos
+            uncurry (lineTo context) $ ((+) (0.0 /\ rs)) $ fromPos pos
+            closePath context
+            fill context
+        when
+          ( Field.isPlayer headField (Field.s pos) player
+              && not (Field.isOwner headField (Field.w pos) player)
+              && not (Field.isOwner headField (Field.e pos) player)
+              && not (Field.isOwner headField (Field.sw pos) player)
+              && not (Field.isOwner headField (Field.se pos) player)
+          )
+          do
+            beginPath context
+            uncurry (moveTo context) $ ((+) (-rs /\ 0.0)) $ fromPos pos
+            uncurry (lineTo context) $ ((+) (-rs /\ 0.0)) $ fromPos $ Field.s pos
+            uncurry (lineTo context) $ ((+) (rs /\ 0.0)) $ fromPos $ Field.s pos
+            uncurry (lineTo context) $ ((+) (rs /\ 0.0)) $ fromPos pos
+            closePath context
+            fill context
+    -- Rendering surroundings.
     let
       toPolygon surrounding =
         if extendedFill then
