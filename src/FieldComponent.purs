@@ -26,7 +26,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, draw, drawPointer, fromToFieldPos, mergedSurroundings)
+import Render (DrawSettings, draw, drawPointer, fromToFieldPos, mergedSurroundings, surrounded)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -74,13 +74,16 @@ fieldComponent
   => H.Component Redraw Input Output m
 fieldComponent =
   Hooks.component \{ queryToken, outputToken } input -> Hooks.do
+    surrounded' <- Hooks.captures { field: NonEmptyList.head input.fields } $ flip Hooks.useMemo \_ ->
+      surrounded input.fields
+
     surroundings <-
       Hooks.captures
         { field: NonEmptyList.head input.fields
         , fullFill: input.drawSettings.fullFill
         , innerSurroundings: input.drawSettings.innerSurroundings
         } $ flip Hooks.useMemo \_ ->
-        mergedSurroundings input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
+        mergedSurroundings surrounded' input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
 
     size /\ sizeId <- Hooks.useState Nothing
 
@@ -116,7 +119,7 @@ fieldComponent =
         width <- getCanvasWidth canvas
         height <- getCanvasHeight canvas
         context <- getContext2DThatWillReadFrequently canvas
-        draw input.drawSettings surroundings width height input.fields context
+        draw input.drawSettings surrounded' surroundings width height input.fields context
         bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
           setCanvasSize canvasPointer
       pure Nothing

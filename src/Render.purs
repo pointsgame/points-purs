@@ -102,33 +102,37 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
       (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
       (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
 
-surroundings :: Boolean -> Boolean -> NonEmptyList Field -> List Chain
-surroundings fullFill innerSurroundings fields =
+surrounded :: NonEmptyList Field -> Set.Set Pos
+surrounded fields =
+  Set.unions $ map (uncurry $ Field.getInsideChain $ NonEmptyList.head fields)
+    $ mapMaybe
+        ( \chain ->
+            let
+              pos = NonEmptyList.head chain
+              nextPos = List.head $ NonEmptyList.tail chain
+            in
+              map (flip Tuple chain) $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
+        )
+    $ NonEmptyList.toList fields >>= Field.lastSurroundChains
+
+surroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List Chain
+surroundings surrounded' fullFill innerSurroundings fields =
   let
     tell' surrounding = tell $ Endo $ (:) surrounding
-    surrounded =
+    surrounded'' =
       if innerSurroundings then
         Set.empty
       else
-        Set.unions $ map (uncurry $ Field.getInsideChain $ NonEmptyList.head fields)
-          $ mapMaybe
-              ( \chain ->
-                  let
-                    pos = NonEmptyList.head chain
-                    nextPos = List.head $ NonEmptyList.tail chain
-                  in
-                    map (flip Tuple chain) $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
-              )
-          $ NonEmptyList.toList fields >>= Field.lastSurroundChains
+        surrounded'
   in
     applyFlipped Nil $ unwrap $ execWriter do
       for_ fields \field ->
         for_ (Field.lastSurroundChains field) \chain ->
-          when (not $ Set.member (NonEmptyList.head chain) surrounded) $
+          when (not $ Set.member (NonEmptyList.head chain) surrounded'') $
             tell' chain
       when fullFill $ for_
         (List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields))
-        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> when (not $ Set.member pos surrounded) do
+        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> when (not $ Set.member pos surrounded'') do
           if Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.e pos) player then
             tell' $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
           else do
@@ -174,8 +178,8 @@ surroundings fullFill innerSurroundings fields =
               $ NonEmptyList.cons' pos
               $ Field.sw pos : Field.s pos : List.Nil
 
-mergedSurroundings :: Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
-mergedSurroundings fullFill innerSurroundings fields = connectHoles $ merge $ surroundings fullFill innerSurroundings fields
+mergedSurroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
+mergedSurroundings surrounded' fullFill innerSurroundings fields = connectHoles $ merge $ surroundings surrounded' fullFill innerSurroundings fields
 
 polygonShift :: Partial => Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
 polygonShift r pos nextPos =
@@ -212,7 +216,7 @@ polygonShiftWide r pos nextPos =
   in
     s /\ s
 
-draw :: DrawSettings -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
+draw :: DrawSettings -> Set.Set Pos -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   { hReflection
   , vReflection
@@ -223,7 +227,9 @@ draw
   , pointRadius
   , fillingAlpha
   , extendedFill
+  , innerSurroundings
   }
+  surrounded'
   surroundings'
   width
   height
@@ -240,6 +246,11 @@ draw
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
+      surrounded'' =
+        if innerSurroundings then
+          Set.empty
+        else
+          surrounded'
     -- Render background.
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
@@ -273,7 +284,7 @@ draw
     setGlobalAlpha context fillingAlpha
     when extendedFill do
       let rs = pointRadius * scale / 5.0 / sqrt 2.0
-      for_ (Field.moves headField) \(Tuple pos player) -> do
+      for_ (Field.moves headField) \(Tuple pos player) -> when (innerSurroundings || not (Set.member pos surrounded'')) do
         setFillStyle context $ if player == Player.Red then redColor else blackColor
         when
           ( Field.isPlayer headField (Field.e pos) player
