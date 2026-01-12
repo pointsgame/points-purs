@@ -41,7 +41,7 @@ import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
-import Effect.Aff.Class (class MonadAff)
+import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Class.Console as Console
 import Effect.Exception as Exception
@@ -266,6 +266,145 @@ buttonStyle = do
   CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
   CSS.cursor CSSCursor.pointer
   CSS.key (CSS.fromString "white-space") "nowrap"
+
+_profileSettings :: Proxy "profileSettings"
+_profileSettings = Proxy
+
+data Availability
+  = AvailabilityInit
+  | AvailabilityChecking String
+  | AvailabilityAvailable String
+  | AvailabilityTaken String
+
+derive instance eqAvailability :: Eq Availability
+
+data ProfileOutput
+  = CheckNickname String
+  | ChangeNickname String
+
+profileSettingsComponent
+  :: forall query m
+   . MonadAff m
+  => H.Component query { currentNickname :: String, availability :: Availability } ProfileOutput m
+profileSettingsComponent =
+  Hooks.component \{ outputToken } input -> Hooks.do
+    -- State for the text input
+    nickname /\ nicknameId <- Hooks.useState input.currentNickname
+    -- Debounce timer fiber
+    fiber /\ fiberId <- Hooks.useState (Maybe.Nothing :: Maybe H.ForkId)
+
+    let
+      borderColor = case input.availability of
+        AvailabilityInit | nickname == "" || nickname == input.currentNickname -> CSS.fromHexString "#dee2e6"
+        AvailabilityAvailable nickname' | nickname == nickname' -> CSS.fromHexString "#28a745" -- Green
+        AvailabilityTaken nickname' | nickname == nickname' -> CSS.fromHexString "#dc3545" -- Red
+        _ -> CSS.fromHexString "#ffc107" -- Yellow
+
+      renderHeader title =
+        HH.h3
+          [ HCSS.style do
+              CSS.marginTop (CSS.px 0.0)
+              CSS.fontSize (CSS.rem 0.9)
+              traverse_ CSS.color $ CSS.fromHexString "#666"
+              CSS.textTransform CSSTextTransform.uppercase
+              CSS.letterSpacing (CSS.px 1.0)
+              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
+              CSS.paddingBottom (CSS.px 10.0)
+              CSS.marginBottom (CSS.px 15.0)
+          ]
+          [ HH.text title ]
+
+      isDirty = nickname /= input.currentNickname
+      isValid = isDirty && input.availability == AvailabilityAvailable nickname
+
+    Hooks.pure $ HH.div
+      [ HCSS.style do
+          CSS.width $ CSS.pct 100.0
+          CSS.height $ CSS.pct 100.0
+          CSS.position CSS.relative
+          CSS.display CSS.flex
+          CSS.justifyContent CSSCommon.center
+          CSS.alignItems CSSCommon.center
+          CSS.backgroundColor CSS.white
+      ]
+      [ HH.div
+          [ HCSS.style do
+              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
+              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
+              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
+              CSS.backgroundColor CSS.white
+              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
+          ]
+          [ HH.div
+              [ HCSS.style $ CSS.marginBottom (CSS.px 30.0) ]
+              [ renderHeader "Profile Settings"
+              , HH.table_
+                  [ HH.tr_
+                      [ HH.td
+                          [ HCSS.style do
+                              CSS.fontSize (CSS.px 14.0)
+                              CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
+                          ]
+                          [ HH.text "Nickname" ]
+                      , HH.td
+                          [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+                          [ HH.input
+                              [ HP.type_ HP.InputText
+                              , HP.value nickname
+                              , HE.onValueInput \val -> do
+                                  Hooks.put nicknameId val
+
+                                  -- Cancel previous timer
+                                  traverse_ Hooks.kill fiber
+
+                                  if val == input.currentNickname || val == "" then do
+                                    -- Reset if empty or same as original
+                                    Hooks.raise outputToken $ CheckNickname "" -- Hack to reset parent state to Init
+                                    Hooks.put fiberId Maybe.Nothing
+                                  else do
+                                    -- Start new timer
+                                    newFiber <- Hooks.fork do
+                                      liftAff $ Aff.delay $ Milliseconds 500.0
+                                      Hooks.raise outputToken $ CheckNickname val
+                                    Hooks.put fiberId $ Maybe.Just newFiber
+                              , HCSS.style do
+                                  CSS.width (CSS.px 200.0)
+                                  CSS.padding (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0)
+                                  traverse_ (CSS.border CSS.solid (CSS.px 2.0)) borderColor
+                                  CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                              ]
+                          ]
+                      ]
+                  ]
+              ]
+          , HH.div
+              [ HCSS.style do
+                  CSS.display CSS.flex
+                  CSS.justifyContent CSSCommon.center
+                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
+                  CSS.paddingTop (CSS.px 20.0)
+              ]
+              [ HH.button
+                  [ HP.disabled (not isValid)
+                  , HCSS.style do
+                      if isValid then traverse_ CSS.backgroundColor (CSS.fromHexString "#e9ecef")
+                      else traverse_ CSS.backgroundColor (CSS.fromHexString "#f8f9fa")
+                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
+                      CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
+                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                      if isValid then do
+                        CSS.cursor CSSCursor.pointer
+                        CSS.fontWeight CSS.bold
+                        traverse_ CSS.color (CSS.fromHexString "#333")
+                      else do
+                        CSS.cursor CSSCursor.notAllowed
+                        traverse_ CSS.color (CSS.fromHexString "#adb5bd")
+                  , HE.onClick $ const $ Hooks.raise outputToken $ ChangeNickname nickname
+                  ]
+                  [ HH.text "Update Profile" ]
+              ]
+          ]
+      ]
 
 -- Hardcoded moves for the preview field to show off surroundings and points
 previewFields :: NonEmptyList.NonEmptyList Field.Field
@@ -764,6 +903,7 @@ data MenuOutput
   | MenuSignInTest String
   | MenuSignOut
   | MenuDrawSettings
+  | MenuProfile
 
 menuComponent
   :: forall query m
@@ -818,6 +958,12 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                   , HE.onClick $ const $ Hooks.raise outputToken MenuSignOut
                   ]
                   [ HH.text "Sign out" ]
+              , HH.button
+                  [ HP.class_ $ wrap "menu-item"
+                  , HCSS.style buttonStyle
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuProfile
+                  ]
+                  [ HH.text "Profile" ]
               , HH.button
                   [ HP.class_ $ wrap "menu-item"
                   , HCSS.style buttonStyle
@@ -965,6 +1111,7 @@ data AppState
       , fields :: NonEmptyList.NonEmptyList Field.Field
       }
   | AppStateDrawSettings
+  | AppStateProfile { availability :: Availability }
   | AppStateLocalGame
       { config :: Message.GameConfig
       , puttingTime :: Instant.Instant
@@ -1080,8 +1227,12 @@ appComponent =
             pure unit
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
-          Message.NicknameAvailableResponse _ _ ->
-            pure unit
+          Message.NicknameAvailableResponse nickname available ->
+            case state of
+              AppStateProfile { availability: AvailabilityChecking nickname' } | nickname == nickname' ->
+                Hooks.put stateId $ AppStateProfile
+                  { availability: (if available then AvailabilityAvailable else AvailabilityTaken) nickname }
+              _ -> pure unit
         pure $ Maybe.Just a
 
     Hooks.pure
@@ -1166,7 +1317,7 @@ appComponent =
                     _menu
                     unit
                     menuComponent
-                    (activePlayerId >>= \playerId -> Map.lookup playerId players)
+                    (activePlayerId >>= (flip Map.lookup players))
                     case _ of
                       MenuSignIn rememberMe ->
                         Hooks.raise outputToken $ Message.GetAuthUrlRequest rememberMe
@@ -1180,6 +1331,10 @@ appComponent =
                         Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId AppStateDrawSettings
+                      MenuProfile -> do
+                        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                        Hooks.put watchingGameIdId Maybe.Nothing
+                        Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
                 ]
             ]
         , HH.div
@@ -1288,6 +1443,25 @@ appComponent =
                           UpdateSettings settings -> do
                             UsePersistentState.put drawSettingsKey drawSettingsId settings
                             Hooks.put stateId AppStateEmpty
+                    AppStateProfile { availability } ->
+                      case activePlayerId >>= flip Map.lookup players of
+                        Maybe.Nothing -> HH.div_ []
+                        Maybe.Just player ->
+                          HH.slot
+                            _profileSettings
+                            unit
+                            profileSettingsComponent
+                            { currentNickname: player.nickname, availability }
+                            case _ of
+                              CheckNickname nickname ->
+                                if nickname == "" || nickname == player.nickname then
+                                  Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
+                                else do
+                                  Hooks.put stateId $ AppStateProfile { availability: AvailabilityChecking nickname }
+                                  Hooks.raise outputToken $ Message.CheckNicknameRequest nickname
+                              ChangeNickname nickname -> do
+                                Hooks.raise outputToken $ Message.ChangeNicknameRequest nickname
+                                Hooks.put stateId AppStateEmpty
                     AppStateEmpty ->
                       HH.slot
                         _createGame
