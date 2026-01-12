@@ -145,6 +145,8 @@ data Request
   | PutPointRequest GameId Coordinate
   | ResignRequest GameId
   | DrawRequest GameId
+  | ChangeNicknameRequest String
+  | CheckNicknameRequest String
 
 derive instance Generic Request _
 
@@ -166,6 +168,8 @@ instance EncodeJson Request where
   encodeJson (PutPointRequest gameId coordinate) = "command" := "PutPoint" ~> "gameId" := gameId ~> "coordinate" := coordinate ~> jsonEmptyObject
   encodeJson (ResignRequest gameId) = "command" := "Resign" ~> "gameId" := gameId ~> jsonEmptyObject
   encodeJson (DrawRequest gameId) = "command" := "Draw" ~> "gameId" := gameId ~> jsonEmptyObject
+  encodeJson (ChangeNicknameRequest nickname) = "command" := "ChangeNickname" ~> "nickname" := nickname ~> jsonEmptyObject
+  encodeJson (CheckNicknameRequest nickname) = "command" := "CheckNickname" ~> "nickname" := nickname ~> jsonEmptyObject
 
 data Response
   = InitResponse (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
@@ -180,7 +184,8 @@ data Response
   | PutPointResponse GameId Move Instant TimeLeft
   | DrawResponse GameId Color
   | GameResultResponse GameId GameResult
-  | NicknameChanged PlayerId Player
+  | NicknameChangedResponse PlayerId Player
+  | NicknameAvailableResponse String Boolean
 
 derive instance Generic Response _
 
@@ -219,5 +224,6 @@ instance DecodeJson Response where
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
       "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player"
       "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "gameResult"
-      "NicknameChanged" -> NicknameChanged <$> obj .: "playerId" <*> obj .: "player"
+      "NicknameChanged" -> NicknameChangedResponse <$> obj .: "playerId" <*> obj .: "player"
+      "NicknameAvailable" -> NicknameAvailableResponse <$> obj .: "nickname" <*> obj .: "available"
       other -> Left $ UnexpectedValue $ encodeJson other

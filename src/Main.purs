@@ -1078,8 +1078,10 @@ appComponent =
             pure unit
           Message.GameResultResponse _ _ ->
             pure unit
-          Message.NicknameChanged playerId player ->
+          Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
+          Message.NicknameAvailableResponse _ _ ->
+            pure unit
         pure $ Maybe.Just a
 
     Hooks.pure
