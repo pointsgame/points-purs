@@ -6,11 +6,14 @@ import Control.Bind (bindFlipped)
 import Control.Monad.Writer (execWriter, tell)
 import Data.Foldable (traverse_, for_)
 import Data.Function (applyFlipped)
+import Data.Functor (voidRight)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
 import Data.List (List(..), mapMaybe, (:))
 import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
+import Data.Map as Map
 import Data.Maybe (maybe)
 import Data.Maybe as Maybe
 import Data.Monoid.Endo (Endo(..))
@@ -102,18 +105,29 @@ fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight widt
       (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
       (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
 
-surrounded :: NonEmptyList Field -> Set.Set Pos
+surrounded :: NonEmptyList Field -> Map.Map Pos Int
 surrounded fields =
-  Set.unions $ map (uncurry $ Field.getInsideChain $ NonEmptyList.head fields)
-    $ mapMaybe
-        ( \chain ->
-            let
-              pos = NonEmptyList.head chain
-              nextPos = List.head $ NonEmptyList.tail chain
-            in
-              map (flip Tuple chain) $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
+  Map.unions
+    $ mapWithIndex
+        ( \index field ->
+            voidRight index
+              $ Set.toMap
+              $ Set.unions
+              $ mapMaybe
+                  ( \chain ->
+                      let
+                        pos = NonEmptyList.head chain
+                        nextPos = List.head $ NonEmptyList.tail chain
+                      in
+                        map (uncurry $ Field.getInsideChain field)
+                          $ map (flip Tuple chain)
+                          $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
+                  )
+              $
+                Field.lastSurroundChains field
         )
-    $ NonEmptyList.toList fields >>= Field.lastSurroundChains
+    $ List.reverse
+    $ NonEmptyList.toList fields
 
 surroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List Chain
 surroundings surrounded' fullFill innerSurroundings fields =
@@ -216,7 +230,7 @@ polygonShiftWide r pos nextPos =
   in
     s /\ s
 
-draw :: DrawSettings -> Set.Set Pos -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
+draw :: DrawSettings -> Map.Map Pos Int -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   { hReflection
   , vReflection
@@ -226,6 +240,7 @@ draw
   , blackColor
   , pointRadius
   , fillingAlpha
+  , fullFill
   , extendedFill
   , innerSurroundings
   }
@@ -246,11 +261,6 @@ draw
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
-      surrounded'' =
-        if innerSurroundings then
-          Set.empty
-        else
-          surrounded'
     -- Render background.
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
@@ -282,16 +292,19 @@ draw
       stroke context
     -- Render lines.
     setGlobalAlpha context fillingAlpha
-    when extendedFill do
+    when (fullFill && extendedFill) do
       let rs = pointRadius * scale / 5.0 / sqrt 2.0
-      for_ (Field.moves headField) \(Tuple pos player) -> when (innerSurroundings || not (Set.member pos surrounded'')) do
+      for_ (Field.moves headField) \(Tuple pos player) -> when (innerSurroundings || not (Map.member pos surrounded')) do
+        let
+          isOwner pos' = Field.isPlayer headField pos' player ||
+            Maybe.maybe false (\i -> Maybe.maybe true ((<) i) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
         setFillStyle context $ if player == Player.Red then redColor else blackColor
         when
           ( Field.isPlayer headField (Field.e pos) player
-              && not (Field.isOwner headField (Field.n pos) player)
-              && not (Field.isOwner headField (Field.s pos) player)
-              && not (Field.isOwner headField (Field.ne pos) player)
-              && not (Field.isOwner headField (Field.se pos) player)
+              && not (isOwner $ Field.n pos)
+              && not (isOwner $ Field.s pos)
+              && not (isOwner $ Field.ne pos)
+              && not (isOwner $ Field.se pos)
           )
           do
             beginPath context
@@ -303,10 +316,10 @@ draw
             fill context
         when
           ( Field.isPlayer headField (Field.s pos) player
-              && not (Field.isOwner headField (Field.w pos) player)
-              && not (Field.isOwner headField (Field.e pos) player)
-              && not (Field.isOwner headField (Field.sw pos) player)
-              && not (Field.isOwner headField (Field.se pos) player)
+              && not (isOwner $ Field.w pos)
+              && not (isOwner $ Field.e pos)
+              && not (isOwner $ Field.sw pos)
+              && not (isOwner $ Field.se pos)
           )
           do
             beginPath context

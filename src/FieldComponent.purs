@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Foldable (traverse_, for_)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
@@ -83,7 +84,7 @@ fieldComponent =
         , fullFill: input.drawSettings.fullFill
         , innerSurroundings: input.drawSettings.innerSurroundings
         } $ flip Hooks.useMemo \_ ->
-        mergedSurroundings surrounded' input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
+        mergedSurroundings (Map.keys surrounded') input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
 
     size /\ sizeId <- Hooks.useState Nothing
 
