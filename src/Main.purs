@@ -1122,6 +1122,51 @@ data AppState
 drawSettingsKey :: String
 drawSettingsKey = "draw-settings"
 
+renderGameHeader
+  :: forall w i
+   . String
+  -> String
+  -> { red :: Milliseconds, black :: Milliseconds }
+  -> NonEmptyList.NonEmptyList Field.Field
+  -> Array (HH.HTML w i)
+renderGameHeader redName blackName timeLeft fields =
+  let
+    currentField = NonEmptyList.head fields
+    nextPlayer = Field.nextPlayer currentField
+    redTicking = nextPlayer == Player.Red
+    scoreRed = Field.scoreRed currentField
+    scoreBlack = Field.scoreBlack currentField
+  in
+    [ HH.fromPlainHTML $ countdown redTicking timeLeft.red
+    , HH.fromPlainHTML $ svgDot "red"
+    , HH.div
+        [ HCSS.style do
+            CSS.display CSS.flex
+            CSS.alignItems CSSCommon.center
+            CSS.fontSize (CSS.rem 0.9)
+        ]
+        [ -- Red Player Name
+          HH.span_ [ HH.text redName ]
+        -- The Score Badge
+        , HH.div
+            [ HCSS.style do
+                traverse_ CSS.backgroundColor $ CSS.fromHexString "#e0e0e0"
+                traverse_ CSS.color $ CSS.fromHexString "#333"
+                CSS.padding (CSS.px 2.0) (CSS.px 8.0) (CSS.px 2.0) (CSS.px 8.0)
+                CSS.marginLeft (CSS.px 8.0)
+                CSS.marginRight (CSS.px 8.0)
+                CSS.borderRadius (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0)
+                CSS.fontWeight CSS.bold
+                CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
+            ]
+            [ HH.text $ show scoreRed <> " : " <> show scoreBlack ]
+        -- Black Player Name
+        , HH.span_ [ HH.text blackName ]
+        ]
+    , HH.fromPlainHTML $ svgDot "black"
+    , HH.fromPlainHTML $ countdown (not redTicking) timeLeft.black
+    ]
+
 appComponent
   :: forall m
    . MonadAff m
@@ -1287,73 +1332,17 @@ appComponent =
                     traverse_ CSS.color $ CSS.fromHexString "#333"
                 ] $ case state of
                 AppStateGame game ->
-                  let
-                    nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
-                    redTicking = nextPlayer == Player.Red
-                  in
-                    [ HH.fromPlainHTML $ countdown redTicking game.timeLeft.red
-                    , HH.fromPlainHTML $ svgDot "red"
-                    , HH.div
-                        [ HCSS.style do
-                            CSS.display CSS.flex
-                            CSS.alignItems CSSCommon.center
-                            CSS.fontSize (CSS.rem 0.9)
-                        ]
-                        [ -- Red Player Name
-                          HH.span_ [ HH.text game.redPlayer.nickname ]
-                        -- The Score Badge
-                        , HH.div
-                            [ HCSS.style do
-                                traverse_ CSS.backgroundColor $ CSS.fromHexString "#e0e0e0"
-                                traverse_ CSS.color $ CSS.fromHexString "#333"
-                                CSS.padding (CSS.px 2.0) (CSS.px 8.0) (CSS.px 2.0) (CSS.px 8.0)
-                                CSS.marginLeft (CSS.px 8.0)
-                                CSS.marginRight (CSS.px 8.0)
-                                CSS.borderRadius (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0)
-                                CSS.fontWeight CSS.bold
-                                CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
-                            ]
-                            [ HH.text $ show (Field.scoreRed $ NonEmptyList.head game.fields) <> " : " <> show (Field.scoreBlack $ NonEmptyList.head game.fields) ]
-                        -- Black Player Name
-                        , HH.span_ [ HH.text game.blackPlayer.nickname ]
-                        ]
-                    , HH.fromPlainHTML $ svgDot "black"
-                    , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
-                    ]
+                  renderGameHeader
+                    game.redPlayer.nickname
+                    game.blackPlayer.nickname
+                    game.timeLeft
+                    game.fields
                 AppStateLocalGame game ->
-                  let
-                    nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
-                    redTicking = nextPlayer == Player.Red
-                  in
-                    [ HH.fromPlainHTML $ countdown redTicking game.timeLeft.red
-                    , HH.fromPlainHTML $ svgDot "red"
-                    , HH.div
-                        [ HCSS.style do
-                            CSS.display CSS.flex
-                            CSS.alignItems CSSCommon.center
-                            CSS.fontSize (CSS.rem 0.9)
-                        ]
-                        [ -- Red Player Name
-                          HH.span_ [ HH.text "Player 1" ]
-                        -- The Score Badge
-                        , HH.div
-                            [ HCSS.style do
-                                traverse_ CSS.backgroundColor $ CSS.fromHexString "#e0e0e0"
-                                traverse_ CSS.color $ CSS.fromHexString "#333"
-                                CSS.padding (CSS.px 2.0) (CSS.px 8.0) (CSS.px 2.0) (CSS.px 8.0)
-                                CSS.marginLeft (CSS.px 8.0)
-                                CSS.marginRight (CSS.px 8.0)
-                                CSS.borderRadius (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0)
-                                CSS.fontWeight CSS.bold
-                                CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
-                            ]
-                            [ HH.text $ show (Field.scoreRed $ NonEmptyList.head game.fields) <> " : " <> show (Field.scoreBlack $ NonEmptyList.head game.fields) ]
-                        -- Black Player Name
-                        , HH.span_ [ HH.text "Player 2" ]
-                        ]
-                    , HH.fromPlainHTML $ svgDot "black"
-                    , HH.fromPlainHTML $ countdown (not redTicking) game.timeLeft.black
-                    ]
+                  renderGameHeader
+                    "Player 1"
+                    "Player 2"
+                    game.timeLeft
+                    game.fields
                 _ -> []
             , HH.div
                 [ HCSS.style $ CSS.marginLeft CSSCommon.auto
