@@ -372,6 +372,7 @@ profileSettingsComponent =
                                   CSS.padding (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0)
                                   traverse_ (CSS.border CSS.solid (CSS.px 2.0)) borderColor
                                   CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
+                                  CSS.outlineStyle $ CSS.fromString "none"
                               ]
                           ]
                       ]
@@ -387,18 +388,13 @@ profileSettingsComponent =
               [ HH.button
                   [ HP.disabled (not isValid)
                   , HCSS.style do
-                      if isValid then traverse_ CSS.backgroundColor (CSS.fromHexString "#e9ecef")
-                      else traverse_ CSS.backgroundColor (CSS.fromHexString "#f8f9fa")
-                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
+                      traverse_ CSS.backgroundColor $ CSS.fromHexString "#e9ecef"
+                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#dee2e6"
                       CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
                       CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                      if isValid then do
-                        CSS.cursor CSSCursor.pointer
-                        CSS.fontWeight CSS.bold
-                        traverse_ CSS.color (CSS.fromHexString "#333")
-                      else do
-                        CSS.cursor CSSCursor.notAllowed
-                        traverse_ CSS.color (CSS.fromHexString "#adb5bd")
+                      CSS.cursor $ if isValid then CSSCursor.pointer else CSSCursor.notAllowed
+                      CSS.fontWeight CSS.bold
+                      CSS.marginRight (CSS.px 15.0)
                   , HE.onClick $ const $ Hooks.raise outputToken $ ChangeNickname nickname
                   ]
                   [ HH.text "Update Profile" ]
@@ -797,7 +793,7 @@ createGameComponent =
                           traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
                           CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
                           CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                          CSS.cursor CSSCursor.pointer
+                          CSS.cursor $ if Maybe.isNothing activePlayerId then CSSCursor.notAllowed else CSSCursor.pointer
                           CSS.fontWeight CSS.bold
                           CSS.marginRight (CSS.px 15.0)
                       , HE.onClick $ const $ do
