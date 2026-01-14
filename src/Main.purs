@@ -50,7 +50,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
-import Foreign (Foreign, ForeignError, readString)
+import Foreign (Foreign, ForeignError, readString, unsafeToForeign)
 import Foreign.Index ((!))
 import Halogen as H
 import Halogen.Aff as HA
@@ -78,6 +78,7 @@ import Web.Event.EventTarget as EET
 import Web.HTML as HTML
 import Web.HTML.HTMLDocument as Document
 import Web.HTML.HTMLInputElement as HTMLInputElement
+import Web.HTML.History as History
 import Web.HTML.Location as Location
 import Web.HTML.Window (Window)
 import Web.HTML.Window as Window
@@ -1095,6 +1096,31 @@ svgMenu = SvgElements.svg
     , SvgElements.line $ line "bottom" 24.0
     ]
 
+data AppHistoryState
+  = AppHistoryStateEmpty
+  | AppHistoryStateGame Message.GameId
+  | AppHistoryStateDrawSettings
+  | AppHistoryStateProfile
+  | AppHistoryStateLocalGame
+
+putHistoryState :: AppHistoryState -> Effect Unit
+putHistoryState state = do
+  window <- HTML.window
+  location <- Window.location window
+  history <- Window.history window
+  url <- Location.search location
+  currentPath <- Location.pathname location
+  let
+    newSearchParams =
+      ( case state of
+          AppHistoryStateGame gameId -> URLSearchParams.set "game" gameId
+          _ -> URLSearchParams.delete "game"
+      )
+        $ URLSearchParams.fromString url
+    newStr = URLSearchParams.toString newSearchParams
+    newUrl = currentPath <> if newStr == "" then "" else "?" <> newStr
+  History.pushState (unsafeToForeign state) (History.DocumentTitle "kropki") (History.URL newUrl) history
+
 data AppState
   = AppStateEmpty
   | AppStateGame
@@ -1214,7 +1240,7 @@ appComponent =
               )
               watchingGameId
           Message.GameInitResponse gameId game moves initTime drawOffer timeLeft ->
-            if Maybe.Just gameId == watchingGameId then
+            if Maybe.Just gameId == watchingGameId then do
               Hooks.put stateId $ AppStateGame
                 { gameId
                 , config: game.config
@@ -1229,6 +1255,7 @@ appComponent =
                     (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
                     moves
                 }
+              liftEffect $ putHistoryState $ AppHistoryStateGame gameId
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
           Message.AuthUrlResponse url -> liftEffect $ do
@@ -1301,6 +1328,7 @@ appComponent =
                     Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                     Hooks.put watchingGameIdId Maybe.Nothing
                     Hooks.put stateId AppStateEmpty
+                    liftEffect $ putHistoryState AppHistoryStateEmpty
                 ]
                 [ HH.img
                     [ HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
@@ -1361,10 +1389,12 @@ appComponent =
                         Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId AppStateDrawSettings
+                        liftEffect $ putHistoryState AppHistoryStateDrawSettings
                       MenuProfile -> do
                         Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
+                        liftEffect $ putHistoryState AppHistoryStateProfile
                 ]
             ]
         , HH.div
@@ -1473,6 +1503,7 @@ appComponent =
                           UpdateSettings settings -> do
                             UsePersistentState.put drawSettingsKey drawSettingsId settings
                             Hooks.put stateId AppStateEmpty
+                            liftEffect $ putHistoryState AppHistoryStateEmpty
                     AppStateProfile { availability } ->
                       case activePlayerId >>= flip Map.lookup players of
                         Maybe.Nothing -> HH.div_ []
@@ -1492,6 +1523,7 @@ appComponent =
                               ChangeNickname nickname -> do
                                 Hooks.raise outputToken $ Message.ChangeNicknameRequest nickname
                                 Hooks.put stateId AppStateEmpty
+                                liftEffect $ putHistoryState AppHistoryStateEmpty
                     AppStateEmpty ->
                       HH.slot
                         _createGame
@@ -1508,6 +1540,7 @@ appComponent =
                               , timeLeft: { red: Milliseconds $ Int.toNumber $ config.time.total * 1000, black: Milliseconds $ Int.toNumber $ config.time.total * 1000 }
                               , fields: NonEmptyList.singleton $ Field.emptyField config.size.width config.size.height
                               }
+                            liftEffect $ putHistoryState AppHistoryStateLocalGame
                           CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
                 ]
             ]
