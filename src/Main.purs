@@ -50,7 +50,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
-import Foreign (Foreign, ForeignError, readString, unsafeToForeign)
+import Foreign (Foreign, ForeignError, readString, unsafeToForeign, unsafeFromForeign, isNull, isUndefined)
 import Foreign.Index ((!))
 import Halogen as H
 import Halogen.Aff as HA
@@ -76,6 +76,7 @@ import Web.DOM.NonElementParentNode (getElementById)
 import Web.Event.Event (Event)
 import Web.Event.EventTarget as EET
 import Web.HTML as HTML
+import Web.HTML.Event.PopStateEvent as PopStateEvent
 import Web.HTML.HTMLDocument as Document
 import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.History as History
@@ -1049,7 +1050,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
 _field :: Proxy "field"
 _field = Proxy
 
-data AppQuery a = AppQuery Message.Response a
+data AppQuery a = AppQueryMessage Message.Response a | AppQueryHistory AppHistoryState a
 
 type AppInput =
   { playerId :: Maybe Message.PlayerId
@@ -1217,13 +1218,22 @@ appComponent =
       pure $ Maybe.Just $ Hooks.unsubscribe subscriptionId
 
     let
+      unsubscribe = Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
       switchToGame gameId = do
-        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+        unsubscribe
         Hooks.put watchingGameIdId $ Maybe.Just gameId
         Hooks.raise outputToken $ Message.SubscribeRequest gameId
 
     Hooks.useQuery queryToken case _ of
-      AppQuery response a -> do
+      AppQueryHistory historyState a -> do
+        case historyState of
+          AppHistoryStateEmpty -> unsubscribe *> Hooks.put stateId AppStateEmpty
+          AppHistoryStateGame gameId -> switchToGame gameId
+          AppHistoryStateDrawSettings -> unsubscribe *> Hooks.put stateId AppStateDrawSettings
+          AppHistoryStateProfile -> unsubscribe *> Hooks.put stateId (AppStateProfile { availability: AvailabilityInit })
+          AppHistoryStateLocalGame -> unsubscribe *> Hooks.put stateId AppStateEmpty -- TODO: Restore local game
+        pure $ Maybe.Just a
+      AppQueryMessage response a -> do
         case response of
           Message.InitResponse playerIdInput playersInput openGamesInput gamesInput -> do
             Hooks.put activePlayerIdId playerIdInput
@@ -1325,7 +1335,7 @@ appComponent =
             [ HH.div
                 [ HCSS.style $ CSS.cursor CSSCursor.pointer
                 , HE.onClick $ const do
-                    Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                    unsubscribe
                     Hooks.put watchingGameIdId Maybe.Nothing
                     Hooks.put stateId AppStateEmpty
                     liftEffect $ putHistoryState AppHistoryStateEmpty
@@ -1386,12 +1396,12 @@ appComponent =
                         Hooks.put activePlayerIdId Maybe.Nothing
                         liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
                       MenuDrawSettings -> do
-                        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                        unsubscribe
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId AppStateDrawSettings
                         liftEffect $ putHistoryState AppHistoryStateDrawSettings
                       MenuProfile -> do
-                        Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
+                        unsubscribe
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
                         liftEffect $ putHistoryState AppHistoryStateProfile
@@ -1650,10 +1660,12 @@ main = do
     let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
     connection <- connectionEffect
     connectionRef <- Ref.new connection
+
     listener <- EET.eventListener \event ->
       for_ (runExcept $ readChildMessage $ eventData event) $ \message ->
         wsSender connectionRef $ Message.AuthRequest message.code message.state
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
+
     HA.runHalogenAff do
       body <- HA.awaitBody
       traverse_ (runUI styleComponent unit) head
@@ -1667,5 +1679,15 @@ main = do
           in
             read
         io <- lift $ runUI appComponent input body
+
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
-        CR.consumer \response -> (io.query $ H.mkTell $ AppQuery response) *> pure Maybe.Nothing
+
+        popStateListener <- H.liftEffect $ EET.eventListener \ev ->
+          for_ (PopStateEvent.fromEvent ev) \pse -> do
+            let foreignState = PopStateEvent.state pse
+            unless (isNull foreignState || isUndefined foreignState) do
+              let state = unsafeFromForeign foreignState
+              Aff.launchAff_ $ void $ io.query $ H.mkTell $ AppQueryHistory state
+        H.liftEffect $ EET.addEventListener (wrap "popstate") popStateListener false (Window.toEventTarget window)
+
+        CR.consumer \response -> (io.query $ H.mkTell $ AppQueryMessage response) *> pure Maybe.Nothing
