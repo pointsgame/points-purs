@@ -1653,8 +1653,6 @@ styleComponent =
 main :: Effect Unit
 main = do
   window <- HTML.window
-  document <- Window.document window
-  head <- Document.head document
   redirect <- checkRedirect window
   unless redirect do
     let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
@@ -1665,6 +1663,13 @@ main = do
       for_ (runExcept $ readChildMessage $ eventData event) $ \message ->
         wsSender connectionRef $ Message.AuthRequest message.code message.state
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
+
+    document <- Window.document window
+    head <- Document.head document
+    location <- Window.location window
+    currentPath <- Location.pathname location
+    history <- Window.history window
+    History.replaceState (unsafeToForeign AppHistoryStateEmpty) (History.DocumentTitle "kropki") (History.URL currentPath) history
 
     HA.runHalogenAff do
       body <- HA.awaitBody
