@@ -165,16 +165,16 @@ gamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HP.class_ $ wrap rosterHeader ]
+            [ HP.class_ $ wrap rosterHeaderClass ]
             [ HH.text "Games" ]
         ] <>
           ( map
               ( \(Tuple gameId { redPlayer, blackPlayer, config }) -> HH.div
-                  [ HP.classes [ wrap rosterItemRow, wrap clickable ]
+                  [ HP.classes [ wrap rosterItemRowClass, wrap clickableClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken gameId
                   ]
                   [ HH.div
-                      [ HP.class_ $ wrap rosterName ]
+                      [ HP.class_ $ wrap rosterNameClass ]
                       [ HH.text redPlayer.nickname
                       , HH.span
                           [ HCSS.style do
@@ -186,7 +186,7 @@ gamesComponent =
                       , HH.text blackPlayer.nickname
                       ]
                   , HH.div
-                      [ HP.class_ $ wrap rosterMeta ]
+                      [ HP.class_ $ wrap rosterMetaClass ]
                       [ HH.fromPlainHTML $ formatConfig config ]
                   ]
               )
@@ -205,24 +205,24 @@ openGamesComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HP.class_ $ wrap rosterHeader ]
+            [ HP.class_ $ wrap rosterHeaderClass ]
             [ HH.text "Open games" ]
         ] <>
           ( map
               ( \(Tuple gameId { playerId, player, config }) -> HH.div
                   [ HP.classes
                       if Maybe.isNothing activePlayerId || elem playerId activePlayerId then
-                        [ wrap rosterItemRow ]
+                        [ wrap rosterItemRowClass ]
                       else
-                        [ wrap rosterItemRow, wrap clickable ]
+                        [ wrap rosterItemRowClass, wrap clickableClass ]
                   , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
                       Hooks.raise outputToken gameId
                   ]
                   [ HH.div
-                      [ HP.class_ $ wrap rosterName ]
+                      [ HP.class_ $ wrap rosterNameClass ]
                       [ HH.text player.nickname ]
                   , HH.div
-                      [ HP.class_ $ wrap rosterMeta ]
+                      [ HP.class_ $ wrap rosterMetaClass ]
                       [ HH.fromPlainHTML $ formatConfig config ]
                   ]
               )
@@ -241,18 +241,18 @@ playersComponent =
     Hooks.pure $ HH.div_
       $
         [ HH.div
-            [ HP.class_ $ wrap rosterHeader
+            [ HP.class_ $ wrap rosterHeaderClass
             ]
             [ HH.text "Players" ]
         ] <>
           ( map
               ( \(Tuple _ player) -> HH.div
-                  [ HP.class_ $ wrap rosterItemRow ]
+                  [ HP.class_ $ wrap rosterItemRowClass ]
                   [ HH.div
-                      [ HP.class_ $ wrap rosterName ]
+                      [ HP.class_ $ wrap rosterNameClass ]
                       [ HH.text player.nickname ]
                   , HH.div
-                      [ HP.class_ $ wrap rosterMeta ]
+                      [ HP.class_ $ wrap rosterMetaClass ]
                       [ HH.text "1500" ]
                   ]
               )
@@ -935,7 +935,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
           )
           maybePlayer
     , HH.div
-        [ HP.id "menu-list"
+        [ HP.id menuListId
         , HCSS.style do
             CSS.position CSS.absolute
             CSS.top $ CSS.pct 100.0
@@ -1075,14 +1075,14 @@ svgDot color = SvgElements.svg
 
 svgMenu :: HH.PlainHTML
 svgMenu = SvgElements.svg
-  [ SvgAttributes.id "hamburger"
+  [ SvgAttributes.id hamburgerId
   , SvgAttributes.width 32.0
   , SvgAttributes.height 32.0
   , HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
   ]
   let
     line c y =
-      [ SvgAttributes.classes [ wrap "line", wrap c ]
+      [ SvgAttributes.classes [ wrap lineClass, wrap c ]
       , SvgAttributes.x1 4.0
       , SvgAttributes.y1 y
       , SvgAttributes.x2 28.0
@@ -1092,9 +1092,9 @@ svgMenu = SvgElements.svg
       , SvgAttributes.strokeLineCap LineCapRound
       ]
   in
-    [ SvgElements.line $ line "top" 8.0
-    , SvgElements.line $ line "middle" 16.0
-    , SvgElements.line $ line "bottom" 24.0
+    [ SvgElements.line $ line topClass 8.0
+    , SvgElements.line $ line middleClass 16.0
+    , SvgElements.line $ line bottomClass 24.0
     ]
 
 data AppHistoryState
@@ -1579,15 +1579,15 @@ readChildMessage value = do
   state <- value ! "state" >>= readString
   pure { code, state }
 
-rosterItemRow :: String
-rosterItemRow = "roster-item-row"
+rosterItemRowClass :: String
+rosterItemRowClass = "roster-item-row"
 
-clickable :: String
-clickable = "clickable"
+clickableClass :: String
+clickableClass = "clickable"
 
 rosterItemRowStyle :: CSS.CSS
 rosterItemRowStyle = do
-  CSS.div CSS.& CSS.byClass rosterItemRow CSS.? do
+  CSS.div CSS.& CSS.byClass rosterItemRowClass CSS.? do
     CSS.display CSS.grid
     CSS.key (CSS.fromString "grid-template-columns") "1fr auto"
     CSS.key (CSS.fromString "gap") "8px"
@@ -1597,34 +1597,34 @@ rosterItemRowStyle = do
     CSS.fontSize (CSS.rem 0.9)
     CSS.alignItems CSSCommon.center
     CSS.backgroundColor CSS.white
-  ((CSS.div CSS.& CSS.byClass rosterItemRow) CSS.& CSS.byClass clickable) CSS.& CSS.hover CSS.? do
+  ((CSS.div CSS.& CSS.byClass rosterItemRowClass) CSS.& CSS.byClass clickableClass) CSS.& CSS.hover CSS.? do
     traverse_ CSS.backgroundColor (CSS.fromHexString "#f0f7ff")
     CSS.cursor CSSCursor.pointer
 
-rosterName :: String
-rosterName = "roster-name"
+rosterNameClass :: String
+rosterNameClass = "roster-name"
 
 rosterNameStyle :: CSS.CSS
-rosterNameStyle = CSS.div CSS.& CSS.byClass rosterName CSS.? do
+rosterNameStyle = CSS.div CSS.& CSS.byClass rosterNameClass CSS.? do
   CSSOverflow.overflow CSSOverflow.hidden
   CSS.textOverflow CSSTextOverflow.ellipsis
   CSS.key (CSS.fromString "white-space") "nowrap"
 
-rosterMeta :: String
-rosterMeta = "roster-meta"
+rosterMetaClass :: String
+rosterMetaClass = "roster-meta"
 
 rosterMetaStyle :: CSS.CSS
-rosterMetaStyle = CSS.div CSS.& CSS.byClass rosterMeta CSS.? do
+rosterMetaStyle = CSS.div CSS.& CSS.byClass rosterMetaClass CSS.? do
   CSS.fontSize (CSS.rem 0.75)
   traverse_ CSS.color $ CSS.fromHexString "#888"
   CSSTextAlign.textAlign CSSTextAlign.rightTextAlign
   CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
 
-rosterHeader :: String
-rosterHeader = "roster-header"
+rosterHeaderClass :: String
+rosterHeaderClass = "roster-header"
 
 rosterHeaderStyle :: CSS.CSS
-rosterHeaderStyle = CSS.div CSS.& CSS.byClass rosterHeader CSS.? do
+rosterHeaderStyle = CSS.div CSS.& CSS.byClass rosterHeaderClass CSS.? do
   traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
   traverse_ CSS.color $ CSS.fromHexString "#333"
   CSS.padding (CSS.px 2.0) (CSS.px 4.0) (CSS.px 2.0) (CSS.px 4.0)
@@ -1632,9 +1632,43 @@ rosterHeaderStyle = CSS.div CSS.& CSS.byClass rosterHeader CSS.? do
   CSS.fontWeight CSS.bold
   CSSTextAlign.textAlign CSSTextAlign.center
   traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#ddd")
-  CSS.key (CSS.fromString "position") "sticky"
+  CSS.position $ CSS.Position $ CSS.fromString "sticky"
   CSS.top (CSS.px 0.0)
   CSS.zIndex 10
+
+menuListId :: String
+menuListId = "menu-list"
+
+hamburgerId :: String
+hamburgerId = "hamburger"
+
+lineClass :: String
+lineClass = "line"
+
+topClass :: String
+topClass = "top"
+
+middleClass :: String
+middleClass = "middle"
+
+bottomClass :: String
+bottomClass = "bottom"
+
+menuStyle :: CSS.CSS
+menuStyle = do
+  CSS.div CSS.& CSS.byId menuListId CSS.? do
+    CSS.visibility CSSCommon.hidden
+    CSS.opacity 0.0
+    CSS.key (CSS.fromString "transition") "opacity 0.3s ease 0.1s, visibility 0s ease 0.4s"
+  (CSS.fromString "svg") CSS.& CSS.byId hamburgerId CSS.? do
+    (CSS.fromString "line") CSS.& CSS.byClass lineClass CSS.? do
+      CSS.key (CSS.fromString "transition") "transform 0.4s, opacity 0.4s"
+    (CSS.fromString "line") CSS.& CSS.byClass topClass CSS.? do
+      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 8.0) (CSS.px 0.0)
+    (CSS.fromString "line") CSS.& CSS.byClass middleClass CSS.? do
+      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 16.0) (CSS.px 0.0)
+    (CSS.fromString "line") CSS.& CSS.byClass bottomClass CSS.? do
+      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 24.0) (CSS.px 0.0)
 
 style :: HH.PlainHTML
 style = HCSS.stylesheet do
@@ -1642,6 +1676,7 @@ style = HCSS.stylesheet do
   rosterNameStyle
   rosterMetaStyle
   rosterHeaderStyle
+  menuStyle
 
 styleComponent
   :: forall query input output m
