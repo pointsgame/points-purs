@@ -21,14 +21,17 @@
     };
   };
 
-  outputs = inputs:
-    inputs.flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    inputs:
+    inputs.flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import inputs.nixpkgs {
           inherit system;
           overlays = [ inputs.purescript-overlay.overlays.default ];
         };
-      in {
+      in
+      {
         devShell = pkgs.mkShell rec {
           buildInputs = with pkgs; [
             purescript-language-server
@@ -47,5 +50,6 @@
 
           LD_LIBRARY_PATH = inputs.nixpkgs.lib.makeLibraryPath buildInputs;
         };
-      });
+      }
+    );
 }
