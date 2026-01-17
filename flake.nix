@@ -43,7 +43,7 @@
             chez
             pcre2
 
-            esbuild
+            lightningcss
             stylelint
             minhtml
           ];

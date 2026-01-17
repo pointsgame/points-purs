@@ -8,6 +8,6 @@ cp --reflink=always ./logo.svg ./result/logo.svg
 spago bundle -p points --minify
 cp --reflink=always ./index.js ./result/
 
-esbuild --minify --bundle styles.css --outfile=./result/styles.css
+lightningcss -m -o ./result/styles.css styles.css
 
 minhtml -o ./result/index.html ./index.html
