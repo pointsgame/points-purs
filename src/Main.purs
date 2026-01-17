@@ -1654,29 +1654,12 @@ middleClass = "middle"
 bottomClass :: String
 bottomClass = "bottom"
 
-menuStyle :: CSS.CSS
-menuStyle = do
-  CSS.div CSS.& CSS.byId menuListId CSS.? do
-    CSS.visibility CSSCommon.hidden
-    CSS.opacity 0.0
-    CSS.key (CSS.fromString "transition") "opacity 0.3s ease 0.1s, visibility 0s ease 0.4s"
-  (CSS.fromString "svg") CSS.& CSS.byId hamburgerId CSS.? do
-    (CSS.fromString "line") CSS.& CSS.byClass lineClass CSS.? do
-      CSS.key (CSS.fromString "transition") "transform 0.4s, opacity 0.4s"
-    (CSS.fromString "line") CSS.& CSS.byClass topClass CSS.? do
-      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 8.0) (CSS.px 0.0)
-    (CSS.fromString "line") CSS.& CSS.byClass middleClass CSS.? do
-      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 16.0) (CSS.px 0.0)
-    (CSS.fromString "line") CSS.& CSS.byClass bottomClass CSS.? do
-      CSS.transformOrigin (CSS.offset $ CSS.px 16.0) (CSS.offset $ CSS.px 24.0) (CSS.px 0.0)
-
 style :: HH.PlainHTML
 style = HCSS.stylesheet do
   rosterItemRowStyle
   rosterNameStyle
   rosterMetaStyle
   rosterHeaderStyle
-  menuStyle
 
 styleComponent
   :: forall query input output m
