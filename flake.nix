@@ -39,6 +39,10 @@
             purescm
             chez
             pcre2
+
+            esbuild
+            stylelint
+            minhtml
           ];
 
           LD_LIBRARY_PATH = inputs.nixpkgs.lib.makeLibraryPath buildInputs;

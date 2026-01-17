@@ -1,0 +1,37 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f9f9f9;
+  font-family: Arial, sans-serif;
+}
+
+#menu:hover:not(.closed) {
+  #menu-list {
+    visibility: visible;
+    opacity: 1;
+    transition:
+      opacity 0.3s,
+      visibility 0s;
+  }
+
+  #hamburger {
+    .top {
+      transform: translateY(8px) rotate(45deg);
+    }
+    .middle {
+      transform: rotateY(90deg);
+    }
+    .bottom {
+      transform: translateY(-8px) rotate(-45deg);
+    }
+  }
+}
+
+.menu-item {
+  font-size: 1rem;
+  background-color: #fff;
+}
+
+.menu-item:hover {
+  background-color: #f7f7f7;
+}
