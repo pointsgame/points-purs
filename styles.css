@@ -60,3 +60,46 @@ body {
 .menu-item:hover {
   background-color: #f7f7f7;
 }
+
+.roster-item-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 4px;
+  border-bottom: solid 1px #eee;
+  color: #444;
+  font-size: 0.9rem;
+  align-items: center;
+  background-color: white;
+}
+
+.roster-item-row.clickable:hover {
+  background-color: #f0f7ff;
+  cursor: pointer;
+}
+
+.roster-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-meta {
+  font-size: 0.75rem;
+  color: #888;
+  text-align: right;
+  font-family: monospace;
+}
+
+.roster-header {
+  background-color: #f0f0f0;
+  color: #333;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: solid 1px #ddd;
+  position: sticky;
+  top: 0px;
+  z-index: 10;
+}

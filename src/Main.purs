@@ -9,7 +9,6 @@ import CSS.Cursor as CSSCursor
 import CSS.Font as CSSFont
 import CSS.FontStyle as CSSFontStyle
 import CSS.Overflow as CSSOverflow
-import CSS.Text.Overflow as CSSTextOverflow
 import CSS.Text.Transform as CSSTextTransform
 import CSS.TextAlign as CSSTextAlign
 import CSS.VerticalAlign as CSSVerticalAlign
@@ -95,9 +94,6 @@ testBuild = false
 foreign import setCookie :: String -> Effect Unit
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
 foreign import eventData :: Event -> Foreign
-
-refresh :: Effect Unit
-refresh = HTML.window >>= Window.location >>= Location.reload
 
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
 wsProducer socketRef socketEffect = CRA.produce \emitter ->
@@ -1585,56 +1581,14 @@ rosterItemRowClass = "roster-item-row"
 clickableClass :: String
 clickableClass = "clickable"
 
-rosterItemRowStyle :: CSS.CSS
-rosterItemRowStyle = do
-  CSS.div CSS.& CSS.byClass rosterItemRowClass CSS.? do
-    CSS.display CSS.grid
-    CSS.key (CSS.fromString "grid-template-columns") "1fr auto"
-    CSS.key (CSS.fromString "gap") "8px"
-    CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-    traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#eee"
-    traverse_ CSS.color $ CSS.fromHexString "#444"
-    CSS.fontSize (CSS.rem 0.9)
-    CSS.alignItems CSSCommon.center
-    CSS.backgroundColor CSS.white
-  ((CSS.div CSS.& CSS.byClass rosterItemRowClass) CSS.& CSS.byClass clickableClass) CSS.& CSS.hover CSS.? do
-    traverse_ CSS.backgroundColor (CSS.fromHexString "#f0f7ff")
-    CSS.cursor CSSCursor.pointer
-
 rosterNameClass :: String
 rosterNameClass = "roster-name"
-
-rosterNameStyle :: CSS.CSS
-rosterNameStyle = CSS.div CSS.& CSS.byClass rosterNameClass CSS.? do
-  CSSOverflow.overflow CSSOverflow.hidden
-  CSS.textOverflow CSSTextOverflow.ellipsis
-  CSS.key (CSS.fromString "white-space") "nowrap"
 
 rosterMetaClass :: String
 rosterMetaClass = "roster-meta"
 
-rosterMetaStyle :: CSS.CSS
-rosterMetaStyle = CSS.div CSS.& CSS.byClass rosterMetaClass CSS.? do
-  CSS.fontSize (CSS.rem 0.75)
-  traverse_ CSS.color $ CSS.fromHexString "#888"
-  CSSTextAlign.textAlign CSSTextAlign.rightTextAlign
-  CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
-
 rosterHeaderClass :: String
 rosterHeaderClass = "roster-header"
-
-rosterHeaderStyle :: CSS.CSS
-rosterHeaderStyle = CSS.div CSS.& CSS.byClass rosterHeaderClass CSS.? do
-  traverse_ CSS.backgroundColor $ CSS.fromHexString "#f0f0f0"
-  traverse_ CSS.color $ CSS.fromHexString "#333"
-  CSS.padding (CSS.px 2.0) (CSS.px 4.0) (CSS.px 2.0) (CSS.px 4.0)
-  CSS.fontSize (CSS.rem 0.85)
-  CSS.fontWeight CSS.bold
-  CSSTextAlign.textAlign CSSTextAlign.center
-  traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#ddd")
-  CSS.position $ CSS.Position $ CSS.fromString "sticky"
-  CSS.top (CSS.px 0.0)
-  CSS.zIndex 10
 
 menuListId :: String
 menuListId = "menu-list"
@@ -1654,20 +1608,6 @@ middleClass = "middle"
 bottomClass :: String
 bottomClass = "bottom"
 
-style :: HH.PlainHTML
-style = HCSS.stylesheet do
-  rosterItemRowStyle
-  rosterNameStyle
-  rosterMetaStyle
-  rosterHeaderStyle
-
-styleComponent
-  :: forall query input output m
-   . MonadAff m
-  => H.Component query input output m
-styleComponent =
-  Hooks.component \_ _ -> Hooks.pure $ HH.fromPlainHTML style
-
 main :: Effect Unit
 main = do
   window <- HTML.window
@@ -1682,8 +1622,6 @@ main = do
         wsSender connectionRef $ Message.AuthRequest message.code message.state
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
 
-    document <- Window.document window
-    head <- Document.head document
     location <- Window.location window
     currentPath <- Location.pathname location
     history <- Window.history window
@@ -1691,7 +1629,6 @@ main = do
 
     HA.runHalogenAff do
       body <- HA.awaitBody
-      traverse_ (runUI styleComponent unit) head
       CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
         input <-
           let
