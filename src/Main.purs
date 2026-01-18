@@ -1128,6 +1128,7 @@ data AppState
       , puttingTime :: Instant.Instant
       , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
       , fields :: NonEmptyList.NonEmptyList Field.Field
+      , result :: Maybe Message.GameResult
       }
   | AppStateDrawSettings
   | AppStateProfile { availability :: Availability }
@@ -1245,7 +1246,7 @@ appComponent =
                     Hooks.put watchingGameIdId Maybe.Nothing
               )
               watchingGameId
-          Message.GameInitResponse gameId game moves initTime drawOffer timeLeft ->
+          Message.GameInitResponse gameId game moves initTime drawOffer timeLeft result ->
             if Maybe.Just gameId == watchingGameId then do
               Hooks.put stateId $ AppStateGame
                 { gameId
@@ -1260,6 +1261,7 @@ appComponent =
                     )
                     (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
                     moves
+                , result
                 }
               liftEffect $ putHistoryState $ AppHistoryStateGame gameId
             else
@@ -1297,8 +1299,11 @@ appComponent =
                 liftEffect $ Console.warn $ "Wrong game to put point"
           Message.DrawResponse _ _ ->
             pure unit
-          Message.GameResultResponse gameId _ ->
+          Message.GameResultResponse gameId result -> do
             Hooks.modify_ gamesId $ Map.delete gameId
+            Hooks.modify_ stateId $ case _ of
+              AppStateGame game | game.gameId == gameId -> AppStateGame game { result = Maybe.Just result }
+              other -> other
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.NicknameAvailableResponse nickname available ->
@@ -1448,7 +1453,7 @@ appComponent =
                       let
                         game' = Map.lookup game.gameId games
                         nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
-                        pointer = Maybe.isJust activePlayerId &&
+                        pointer = Maybe.isNothing game.result && Maybe.isJust activePlayerId &&
                           ( map _.redPlayerId game' == activePlayerId && nextPlayer == Player.Red ||
                               map _.blackPlayerId game' == activePlayerId && nextPlayer == Player.Black
                           )

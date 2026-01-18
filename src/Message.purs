@@ -173,7 +173,7 @@ instance EncodeJson Request where
 
 data Response
   = InitResponse (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
-  | GameInitResponse GameId Game (Array Move) Instant (Maybe Color) TimeLeft
+  | GameInitResponse GameId Game (Array Move) Instant (Maybe Color) TimeLeft (Maybe GameResult)
   | AuthUrlResponse String
   | AuthResponse PlayerId String
   | PlayerJoinedResponse PlayerId Player
@@ -214,6 +214,7 @@ instance DecodeJson Response where
         <*> (map un $ obj .: "initTime")
         <*> obj .:? "drawOffer"
         <*> obj .: "timeLeft"
+        <*> obj .: "result"
       "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "playerId" <*> obj .: "player"
