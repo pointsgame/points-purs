@@ -1297,8 +1297,8 @@ appComponent =
                 liftEffect $ Console.warn $ "Wrong game to put point"
           Message.DrawResponse _ _ ->
             pure unit
-          Message.GameResultResponse _ _ ->
-            pure unit
+          Message.GameResultResponse gameId _ ->
+            Hooks.modify_ gamesId $ Map.delete gameId
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.NicknameAvailableResponse nickname available ->
