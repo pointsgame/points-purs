@@ -1147,9 +1147,10 @@ renderGameHeader
    . String
   -> String
   -> { red :: Milliseconds, black :: Milliseconds }
+  -> Boolean
   -> NonEmptyList.NonEmptyList Field.Field
   -> Array (HH.HTML w i)
-renderGameHeader redName blackName timeLeft fields =
+renderGameHeader redName blackName timeLeft finished fields =
   let
     currentField = NonEmptyList.head fields
     nextPlayer = Field.nextPlayer currentField
@@ -1157,7 +1158,7 @@ renderGameHeader redName blackName timeLeft fields =
     scoreRed = Field.scoreRed currentField
     scoreBlack = Field.scoreBlack currentField
   in
-    [ HH.fromPlainHTML $ countdown redTicking timeLeft.red
+    [ HH.fromPlainHTML $ countdown (not finished && redTicking) timeLeft.red
     , HH.fromPlainHTML $ svgDot "red"
     , HH.div
         [ HCSS.style do
@@ -1184,7 +1185,7 @@ renderGameHeader redName blackName timeLeft fields =
         , HH.span_ [ HH.text blackName ]
         ]
     , HH.fromPlainHTML $ svgDot "black"
-    , HH.fromPlainHTML $ countdown (not redTicking) timeLeft.black
+    , HH.fromPlainHTML $ countdown (not finished && not redTicking) timeLeft.black
     ]
 
 appComponent
@@ -1299,10 +1300,13 @@ appComponent =
                 liftEffect $ Console.warn $ "Wrong game to put point"
           Message.DrawResponse _ _ ->
             pure unit
-          Message.GameResultResponse gameId result -> do
+          Message.GameResultResponse gameId timeLeft result -> do
             Hooks.modify_ gamesId $ Map.delete gameId
             Hooks.modify_ stateId $ case _ of
-              AppStateGame game | game.gameId == gameId -> AppStateGame game { result = Maybe.Just result }
+              AppStateGame game | game.gameId == gameId -> AppStateGame game
+                { result = Maybe.Just result
+                , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
+                }
               other -> other
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
@@ -1371,12 +1375,14 @@ appComponent =
                     game.redPlayer.nickname
                     game.blackPlayer.nickname
                     game.timeLeft
+                    (Maybe.isJust game.result)
                     game.fields
                 AppStateLocalGame game ->
                   renderGameHeader
                     "Player 1"
                     "Player 2"
                     game.timeLeft
+                    false
                     game.fields
                 _ -> []
             , HH.div

@@ -183,7 +183,7 @@ data Response
   | StartResponse GameId Game
   | PutPointResponse GameId Move Instant TimeLeft
   | DrawResponse GameId Color
-  | GameResultResponse GameId GameResult
+  | GameResultResponse GameId TimeLeft GameResult
   | NicknameChangedResponse PlayerId Player
   | NicknameAvailableResponse String Boolean
 
@@ -224,7 +224,7 @@ instance DecodeJson Response where
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "game"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
       "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player"
-      "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "result"
+      "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "timeLeft" <*> obj .: "result"
       "NicknameChanged" -> NicknameChangedResponse <$> obj .: "playerId" <*> obj .: "player"
       "NicknameAvailable" -> NicknameAvailableResponse <$> obj .: "nickname" <*> obj .: "available"
       other -> Left $ UnexpectedValue $ encodeJson other
