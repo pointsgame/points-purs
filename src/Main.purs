@@ -1053,6 +1053,7 @@ type AppInput =
   , players :: Message.Players
   , openGames :: Message.OpenGames
   , games :: Message.Games
+  , watchingGameId :: Maybe Message.GameId
   }
 
 svgDot :: String -> HH.PlainHTML
@@ -1198,7 +1199,7 @@ appComponent =
     openGames /\ openGamesId <- Hooks.useState input.openGames
     games /\ gamesId <- Hooks.useState input.games
     players /\ playersId <- Hooks.useState input.players
-    watchingGameId /\ watchingGameIdId <- Hooks.useState Maybe.Nothing
+    watchingGameId /\ watchingGameIdId <- Hooks.useState input.watchingGameId
     drawSettings /\ drawSettingsId <- UsePersistentState.usePersistentState drawSettingsKey defaultDrawSettings
     state /\ stateId <- Hooks.useState AppStateEmpty
 
@@ -1634,9 +1635,13 @@ main = do
     EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
 
     location <- Window.location window
-    currentPath <- Location.pathname location
+    currentHref <- Location.href location
     history <- Window.history window
-    History.replaceState (unsafeToForeign AppHistoryStateEmpty) (History.DocumentTitle "kropki") (History.URL currentPath) history
+    History.replaceState (unsafeToForeign AppHistoryStateEmpty) (History.DocumentTitle "kropki") (History.URL currentHref) history
+    search <- liftEffect $ Location.search location
+    let
+      searchParams = URLSearchParams.fromString search
+      maybeGameId = URLSearchParams.get "game" searchParams
 
     HA.runHalogenAff do
       body <- HA.awaitBody
@@ -1645,10 +1650,13 @@ main = do
           let
             read = CR.await >>= case _ of
               Message.InitResponse playerId players openGames games ->
-                pure { playerId, players, openGames, games }
+                pure { playerId, players, openGames, games, watchingGameId: maybeGameId }
               other -> (Console.warn $ "Unexpected first message: " <> show other) *> read
           in
             read
+
+        H.liftEffect $ for_ maybeGameId $ (wsSender connectionRef <<< Message.SubscribeRequest)
+
         io <- lift $ runUI appComponent input body
 
         _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
