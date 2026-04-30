@@ -17,6 +17,8 @@ import Data.DateTime.Instant as Instant
 import Data.Either as Either
 import Data.Foldable (elem, for_, traverse_)
 import Data.Int as Int
+import Data.List (List(..))
+import Data.List as List
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
 import Data.Maybe (Maybe)
@@ -919,6 +921,7 @@ data AppState
       , puttingTime :: Instant.Instant
       , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
       , fields :: NonEmptyList.NonEmptyList Field.Field
+      , redoFields :: List.List Field.Field
       }
 
 drawSettingsKey :: String
@@ -983,6 +986,62 @@ appComponent =
           pure $ MutationObserver.disconnect observer
       subscriptionId <- Hooks.subscribe emitter
       pure $ Maybe.Just $ Hooks.unsubscribe subscriptionId
+
+    Hooks.useLifecycleEffect do
+      let
+        keyEmitter = HS.makeEmitter \push -> do
+          window <- HTML.window
+          listener <- EET.eventListener \event ->
+            for_ (KeyboardEvent.fromEvent event) \ke ->
+              case KeyboardEvent.key ke of
+                "ArrowLeft" -> push do
+                  currentState <- Hooks.get stateId
+                  case currentState of
+                    AppStateLocalGame game ->
+                      case NonEmptyList.uncons game.fields of
+                        { head: currentField, tail: Cons prevField rest } -> do
+                          now' <- liftEffect $ Now.now
+                          let
+                            increment = Int.toNumber game.config.time.increment * 1000.0
+                            movedPlayer = Field.nextPlayer prevField
+                          Hooks.put stateId $ AppStateLocalGame game
+                            { puttingTime = now'
+                            , fields = NonEmptyList.cons' prevField rest
+                            , redoFields = Cons currentField game.redoFields
+                            , timeLeft = case movedPlayer of
+                                Player.Red -> game.timeLeft { red = Milliseconds $ max 0.0 (unwrap game.timeLeft.red - increment) }
+                                Player.Black -> game.timeLeft { black = Milliseconds $ max 0.0 (unwrap game.timeLeft.black - increment) }
+                            }
+                        _ -> pure unit
+                    _ -> pure unit
+                "ArrowRight" -> push do
+                  currentState <- Hooks.get stateId
+                  case currentState of
+                    AppStateLocalGame game ->
+                      case game.redoFields of
+                        Cons redoField rest -> do
+                          now' <- liftEffect $ Now.now
+                          let
+                            elapsed :: Milliseconds
+                            elapsed = Instant.diff now' game.puttingTime
+                            diff = unwrap elapsed
+                            increment = Int.toNumber game.config.time.increment * 1000.0
+                            movedPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
+                          Hooks.put stateId $ AppStateLocalGame game
+                            { puttingTime = now'
+                            , fields = NonEmptyList.cons redoField game.fields
+                            , redoFields = rest
+                            , timeLeft = case movedPlayer of
+                                Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
+                                Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
+                            }
+                        Nil -> pure unit
+                    _ -> pure unit
+                _ -> pure unit
+          EET.addEventListener (wrap "keydown") listener false (Window.toEventTarget window)
+          pure $ EET.removeEventListener (wrap "keydown") listener false (Window.toEventTarget window)
+      keySubscriptionId <- Hooks.subscribe keyEmitter
+      pure $ Maybe.Just $ Hooks.unsubscribe keySubscriptionId
 
     let
       unsubscribe = Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
@@ -1238,6 +1297,7 @@ appComponent =
                               , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
                                   $ Field.putPoint (Tuple x y) nextPlayer
                                   $ NonEmptyList.head game.fields
+                              , redoFields = Nil
                               }
                     AppStateDrawSettings ->
                       HH.slot
@@ -1285,6 +1345,7 @@ appComponent =
                               , puttingTime: now
                               , timeLeft: { red: Milliseconds $ Int.toNumber $ config.time.total * 1000, black: Milliseconds $ Int.toNumber $ config.time.total * 1000 }
                               , fields: NonEmptyList.singleton $ Field.emptyField config.size.width config.size.height
+                              , redoFields: Nil
                               }
                             liftEffect $ putHistoryState AppHistoryStateLocalGame
                           CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
