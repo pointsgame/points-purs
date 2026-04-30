@@ -67,6 +67,7 @@ import Web.DOM.Element as Element
 import Web.DOM.MutationObserver as MutationObserver
 import Web.DOM.NonElementParentNode (getElementById)
 import Web.Event.Event (Event)
+import Web.Event.Event as Event
 import Web.Event.EventTarget as EET
 import Web.HTML as HTML
 import Web.HTML.Event.PopStateEvent as PopStateEvent
@@ -944,8 +945,26 @@ appComponent =
                 _ -> pure unit
           EET.addEventListener (wrap "keydown") listener false (Window.toEventTarget window)
           pure $ EET.removeEventListener (wrap "keydown") listener false (Window.toEventTarget window)
+        saveEmitter = HS.makeEmitter \push -> do
+          window <- HTML.window
+          listener <- EET.eventListener \event ->
+            for_ (KeyboardEvent.fromEvent event) \ke ->
+              when (KeyboardEvent.key ke == "s" && KeyboardEvent.ctrlKey ke) do
+                Event.preventDefault event
+                push do
+                  currentState <- Hooks.get stateId
+                  let
+                    maybeFields = case currentState of
+                      AppStateGame game -> Maybe.Just game.fields
+                      AppStateLocalGame game -> Maybe.Just game.fields
+                      _ -> Maybe.Nothing
+                  for_ maybeFields \fields ->
+                    liftEffect $ saveFile "game.sgf" $ Sgf.fieldsToSgf fields
+          EET.addEventListener (wrap "keydown") listener false (Window.toEventTarget window)
+          pure $ EET.removeEventListener (wrap "keydown") listener false (Window.toEventTarget window)
       keySubscriptionId <- Hooks.subscribe keyEmitter
-      pure $ Maybe.Just $ Hooks.unsubscribe keySubscriptionId
+      saveSubscriptionId <- Hooks.subscribe saveEmitter
+      pure $ Maybe.Just $ Hooks.unsubscribe keySubscriptionId *> Hooks.unsubscribe saveSubscriptionId
 
     let
       unsubscribe = Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
