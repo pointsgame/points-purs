@@ -15,7 +15,7 @@ import Data.Argonaut (decodeJson, encodeJson, parseJson, stringify)
 import Data.Array as Array
 import Data.DateTime.Instant as Instant
 import Data.Either as Either
-import Data.Foldable (elem, for_, traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.Int as Int
 import Data.List (List(..))
 import Data.List as List
@@ -58,6 +58,7 @@ import Halogen.VDom.Driver (runUI)
 import Message as Message
 import Player as Player
 import Render (DrawSettings, defaultDrawSettings)
+import SidePanelComponent as SidePanelComponent
 import Type.Proxy (Proxy(..))
 import UsePersistentState as UsePersistentState
 import Web.DOM.DOMTokenList as DOMTokenList
@@ -124,124 +125,6 @@ wsProducer socketRef socketEffect = CRA.produce \emitter ->
 
 wsSender :: Ref WS.WebSocket -> Message.Request -> Effect Unit
 wsSender socket message = Ref.read socket >>= \s -> WS.sendString s $ stringify $ encodeJson message
-
-formatConfig :: Message.GameConfig -> HH.PlainHTML
-formatConfig config =
-  let
-    widthStr = show config.size.width
-    heightStr = show config.size.height
-    minutes = config.time.total / 60
-    seconds = config.time.total `mod` 60
-    secPad = if seconds < 10 then "0" else ""
-    timeStr = show minutes <> ":" <> secPad <> show seconds <> "+" <> show config.time.increment
-  in
-    HH.span_
-      [ HH.text $ widthStr <> "x" <> heightStr
-      , HH.br_
-      , HH.text timeStr
-      ]
-
-_games :: Proxy "games"
-_games = Proxy
-
-gamesComponent
-  :: forall query m
-   . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Message.Games) Message.GameId m
-gamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ games) -> Hooks.do
-    Hooks.pure $ HH.div_
-      $
-        [ HH.div
-            [ HP.class_ $ wrap rosterHeaderClass ]
-            [ HH.text "Games" ]
-        ] <>
-          ( map
-              ( \(Tuple gameId { redPlayer, blackPlayer, config }) -> HH.div
-                  [ HP.classes [ wrap rosterItemRowClass, wrap clickableClass ]
-                  , HE.onClick $ const $ Hooks.raise outputToken gameId
-                  ]
-                  [ HH.div
-                      [ HP.class_ $ wrap rosterNameClass ]
-                      [ HH.text redPlayer.nickname
-                      , HH.span
-                          [ HP.class_ $ wrap vsLabelClass ]
-                          [ HH.text "vs" ]
-                      , HH.text blackPlayer.nickname
-                      ]
-                  , HH.div
-                      [ HP.class_ $ wrap rosterMetaClass ]
-                      [ HH.fromPlainHTML $ formatConfig config ]
-                  ]
-              )
-              $ Map.toUnfoldableUnordered games
-          )
-
-_openGames :: Proxy "openGames"
-_openGames = Proxy
-
-openGamesComponent
-  :: forall query m
-   . MonadAff m
-  => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) Message.GameId m
-openGamesComponent =
-  Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
-    Hooks.pure $ HH.div_
-      $
-        [ HH.div
-            [ HP.class_ $ wrap rosterHeaderClass ]
-            [ HH.text "Open games" ]
-        ] <>
-          ( map
-              ( \(Tuple gameId { playerId, player, config }) -> HH.div
-                  [ HP.classes
-                      if Maybe.isNothing activePlayerId || elem playerId activePlayerId then
-                        [ wrap rosterItemRowClass ]
-                      else
-                        [ wrap rosterItemRowClass, wrap clickableClass ]
-                  , HE.onClick $ const $ when (Maybe.isJust activePlayerId && map _.playerId (Map.lookup gameId openGames) /= activePlayerId) $
-                      Hooks.raise outputToken gameId
-                  ]
-                  [ HH.div
-                      [ HP.class_ $ wrap rosterNameClass ]
-                      [ HH.text player.nickname ]
-                  , HH.div
-                      [ HP.class_ $ wrap rosterMetaClass ]
-                      [ HH.fromPlainHTML $ formatConfig config ]
-                  ]
-              )
-              $ Map.toUnfoldableUnordered openGames
-          )
-
-_players :: Proxy "players"
-_players = Proxy
-
-playersComponent
-  :: forall query output m
-   . MonadAff m
-  => H.Component query Message.Players output m
-playersComponent =
-  Hooks.component \_ players -> Hooks.do
-    Hooks.pure $ HH.div_
-      $
-        [ HH.div
-            [ HP.class_ $ wrap rosterHeaderClass
-            ]
-            [ HH.text "Players" ]
-        ] <>
-          ( map
-              ( \(Tuple _ player) -> HH.div
-                  [ HP.class_ $ wrap rosterItemRowClass ]
-                  [ HH.div
-                      [ HP.class_ $ wrap rosterNameClass ]
-                      [ HH.text player.nickname ]
-                  , HH.div
-                      [ HP.class_ $ wrap rosterMetaClass ]
-                      [ HH.text "1500" ]
-                  ]
-              )
-              $ Map.toUnfoldableUnordered players
-          )
 
 buttonClass :: String
 buttonClass = "btn"
@@ -826,6 +709,9 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
         ]
     ]
 
+_sidePanel :: Proxy "sidePanel"
+_sidePanel = Proxy
+
 _field :: Proxy "field"
 _field = Proxy
 
@@ -1218,28 +1104,14 @@ appComponent =
             ]
         , HH.div
             [ HP.class_ $ wrap mainContentClass ]
-            [ HH.div
-                [ HP.id "side-panel"
-                , HP.class_ $ wrap sidePanelClass
-                ]
-                [ HH.slot
-                    _games
-                    unit
-                    gamesComponent
-                    (activePlayerId /\ games)
-                    \gameId -> when (Maybe.Just gameId /= watchingGameId) $ switchToGame gameId
-                , HH.slot
-                    _openGames
-                    unit
-                    openGamesComponent
-                    (activePlayerId /\ openGames)
-                    \gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
-                , HH.slot_
-                    _players
-                    unit
-                    playersComponent
-                    players
-                ]
+            [ HH.slot
+                _sidePanel
+                unit
+                SidePanelComponent.sidePanelComponent
+                { activePlayerId, games, openGames, players }
+                case _ of
+                  SidePanelComponent.WatchGame gameId -> when (Maybe.Just gameId /= watchingGameId) $ switchToGame gameId
+                  SidePanelComponent.JoinGame gameId -> Hooks.raise outputToken $ Message.JoinRequest gameId
             , HH.div
                 [ HP.class_ $ wrap gameAreaClass ]
                 [ case state of
@@ -1376,21 +1248,6 @@ readChildMessage value = do
   state <- value ! "state" >>= readString
   pure { code, state }
 
-rosterItemRowClass :: String
-rosterItemRowClass = "roster-item-row"
-
-clickableClass :: String
-clickableClass = "clickable"
-
-rosterNameClass :: String
-rosterNameClass = "roster-name"
-
-rosterMetaClass :: String
-rosterMetaClass = "roster-meta"
-
-rosterHeaderClass :: String
-rosterHeaderClass = "roster-header"
-
 menuListId :: String
 menuListId = "menu-list"
 
@@ -1408,9 +1265,6 @@ middleClass = "middle"
 
 bottomClass :: String
 bottomClass = "bottom"
-
-vsLabelClass :: String
-vsLabelClass = "vs-label"
 
 sectionHeaderClass :: String
 sectionHeaderClass = "section-header"
@@ -1501,9 +1355,6 @@ menuWrapperClass = "menu-wrapper"
 
 mainContentClass :: String
 mainContentClass = "main-content"
-
-sidePanelClass :: String
-sidePanelClass = "side-panel"
 
 gameAreaClass :: String
 gameAreaClass = "game-area"
