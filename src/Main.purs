@@ -290,7 +290,7 @@ profileSettingsComponent =
       [ HH.div
           [ HP.class_ $ wrap cardPanelClass ]
           [ HH.div
-              [ HP.class_ $ wrap settingsColumnsClass ]
+              [ HCSS.style $ CSS.marginBottom (CSS.px 30.0) ]
               [ renderHeader "Profile Settings"
               , HH.table_
                   [ HH.tr_
