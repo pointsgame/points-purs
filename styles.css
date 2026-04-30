@@ -103,3 +103,320 @@ body {
   top: 0px;
   z-index: 10;
 }
+
+/* Games "vs" label */
+.vs-label {
+  color: #bbb;
+  padding: 0px 2px;
+  font-style: italic;
+}
+
+/* Shared button style */
+.btn {
+  width: 100%;
+  color: #333;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Section header used in settings/create-game dialogs */
+.section-header {
+  margin-top: 0px;
+  font-size: 0.9rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: solid 1px #dee2e6;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+/* Full-page centered overlay container */
+.overlay-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: white;
+}
+
+/* Card panel (settings, create-game, profile) */
+.card-panel {
+  border: solid 1px #dee2e6;
+  border-radius: 8px;
+  padding: 30px;
+  background-color: white;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Table cell: label */
+.td-label {
+  font-size: 14px;
+  padding: 6px 15px 6px 0px;
+}
+
+/* Table cell: value */
+.td-value {
+  padding: 6px 0px;
+}
+
+/* Number/text input in settings */
+.input-small {
+  width: 60px;
+  padding: 2px;
+  border: solid 1px #dee2e6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* Number input in create-game */
+.input-create {
+  width: 60px;
+  padding: 5px;
+  border: solid 1px #dee2e6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* Checkbox input in settings */
+.input-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Section spacing */
+.section-spacer {
+  margin-top: 20px;
+}
+
+/* Settings columns container */
+.settings-columns {
+  display: flex;
+  margin-bottom: 30px;
+}
+
+/* Settings left column with right margin */
+.settings-col-left {
+  margin-right: 40px;
+}
+
+/* Settings row layout */
+.settings-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+/* Preview column */
+.preview-col {
+  margin-left: 40px;
+  padding-left: 40px;
+  border-left: solid 1px #dee2e6;
+}
+
+/* Preview box */
+.preview-box {
+  width: 300px;
+  height: 300px;
+  border: solid 1px #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.05);
+  background-color: white;
+}
+
+/* Button group (centered, with top border) */
+.btn-group {
+  display: flex;
+  justify-content: center;
+  border-top: solid 1px #dee2e6;
+  padding-top: 20px;
+}
+
+/* Primary action button */
+.btn-primary {
+  background-color: #e9ecef;
+  border: solid 1px #dee2e6;
+  padding: 10px 25px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.btn-primary.btn-pointer {
+  cursor: pointer;
+}
+
+.btn-primary.btn-not-allowed {
+  cursor: not-allowed;
+}
+
+.btn-primary.btn-mr {
+  margin-right: 15px;
+}
+
+/* Nickname input in profile */
+.input-nickname {
+  width: 200px;
+  padding: 6px;
+  border-radius: 4px;
+  outline-style: none;
+}
+
+/* App root layout */
+.app-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top bar */
+.top-bar {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: #f2f2f2;
+  border-bottom: solid 1px #ddd;
+}
+
+/* Logo link */
+.logo-link {
+  cursor: pointer;
+}
+
+/* Logo image */
+.logo-img {
+  vertical-align: middle;
+}
+
+/* Logo/player label */
+.nav-label {
+  cursor: pointer;
+  vertical-align: middle;
+  padding: 5px 10px;
+  color: #333;
+}
+
+/* Game header center */
+.game-header-center {
+  align-items: center;
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #333;
+}
+
+/* Score badge */
+.score-badge {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.score-value {
+  background-color: #e0e0e0;
+  color: #333;
+  padding: 2px 8px;
+  margin-left: 8px;
+  margin-right: 8px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+/* Menu auto-margin wrapper */
+.menu-wrapper {
+  margin-left: auto;
+}
+
+/* Main content area */
+.main-content {
+  height: 100%;
+  display: flex;
+}
+
+/* Side panel */
+.side-panel {
+  width: 10rem;
+  height: 100%;
+  resize: horizontal;
+  border-right: solid 1px #ddd;
+  overflow: auto;
+  font-family: sans-serif;
+  background-color: #f9f9f9;
+}
+
+/* Game area */
+.game-area {
+  background-color: white;
+  flex-grow: 2;
+  padding: 4px;
+}
+
+/* Menu position */
+.menu-pos {
+  position: relative;
+}
+
+/* Menu trigger */
+.menu-trigger {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Menu dropdown */
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0px;
+  background-color: #fff;
+  border: solid 1px #ddd;
+  padding: 10px;
+  z-index: 1;
+  border-radius: 8px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* SVG hamburger vertical-align */
+.svg-valign-middle {
+  vertical-align: middle;
+}
+
+/* Sign-in test input */
+.test-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 5px;
+}
+
+/* Remember-me row */
+.remember-me-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 5px 0px;
+}
+
+/* Remember-me checkbox */
+.remember-me-checkbox {
+  margin: 0px 3px 0px 0px;
+  cursor: pointer;
+}
+
+/* Remember-me label */
+.remember-me-label {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: #333;
+  cursor: pointer;
+}

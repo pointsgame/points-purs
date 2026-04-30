@@ -3,15 +3,6 @@ module Main where
 import Prelude
 
 import CSS as CSS
-import CSS.Box as CSSBox
-import CSS.Common as CSSCommon
-import CSS.Cursor as CSSCursor
-import CSS.Font as CSSFont
-import CSS.FontStyle as CSSFontStyle
-import CSS.Overflow as CSSOverflow
-import CSS.Text.Transform as CSSTextTransform
-import CSS.TextAlign as CSSTextAlign
-import CSS.VerticalAlign as CSSVerticalAlign
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
@@ -31,7 +22,6 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
-import Data.NonEmpty as NonEmpty
 import Data.Number as Number
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
@@ -173,11 +163,7 @@ gamesComponent =
                       [ HP.class_ $ wrap rosterNameClass ]
                       [ HH.text redPlayer.nickname
                       , HH.span
-                          [ HCSS.style do
-                              traverse_ CSS.color $ CSS.fromHexString "#bbb"
-                              CSS.padding (CSS.px 0.0) (CSS.px 2.0) (CSS.px 0.0) (CSS.px 2.0)
-                              CSS.fontStyle CSSFontStyle.Italic
-                          ]
+                          [ HP.class_ $ wrap vsLabelClass ]
                           [ HH.text "vs" ]
                       , HH.text blackPlayer.nickname
                       ]
@@ -255,15 +241,8 @@ playersComponent =
               $ Map.toUnfoldableUnordered players
           )
 
-buttonStyle :: CSS.CSS
-buttonStyle = do
-  CSS.width (CSS.pct 100.0)
-  traverse_ CSS.color $ CSS.fromHexString "#333"
-  CSS.key (CSS.fromString "border") "none"
-  CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-  CSS.borderRadius (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
-  CSS.cursor CSSCursor.pointer
-  CSS.key (CSS.fromString "white-space") "nowrap"
+buttonClass :: String
+buttonClass = "btn"
 
 _profileSettings :: Proxy "profileSettings"
 _profileSettings = Proxy
@@ -300,52 +279,26 @@ profileSettingsComponent =
 
       renderHeader title =
         HH.h3
-          [ HCSS.style do
-              CSS.marginTop (CSS.px 0.0)
-              CSS.fontSize (CSS.rem 0.9)
-              traverse_ CSS.color $ CSS.fromHexString "#666"
-              CSS.textTransform CSSTextTransform.uppercase
-              CSS.letterSpacing (CSS.px 1.0)
-              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
-              CSS.paddingBottom (CSS.px 10.0)
-              CSS.marginBottom (CSS.px 15.0)
-          ]
+          [ HP.class_ $ wrap sectionHeaderClass ]
           [ HH.text title ]
 
       isDirty = nickname /= input.currentNickname
       isValid = isDirty && input.availability == AvailabilityAvailable nickname
 
     Hooks.pure $ HH.div
-      [ HCSS.style do
-          CSS.width $ CSS.pct 100.0
-          CSS.height $ CSS.pct 100.0
-          CSS.position CSS.relative
-          CSS.display CSS.flex
-          CSS.justifyContent CSSCommon.center
-          CSS.alignItems CSSCommon.center
-          CSS.backgroundColor CSS.white
-      ]
+      [ HP.class_ $ wrap overlayContainerClass ]
       [ HH.div
-          [ HCSS.style do
-              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
-              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
-              CSS.backgroundColor CSS.white
-              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
-          ]
+          [ HP.class_ $ wrap cardPanelClass ]
           [ HH.div
-              [ HCSS.style $ CSS.marginBottom (CSS.px 30.0) ]
+              [ HP.class_ $ wrap settingsColumnsClass ]
               [ renderHeader "Profile Settings"
               , HH.table_
                   [ HH.tr_
                       [ HH.td
-                          [ HCSS.style do
-                              CSS.fontSize (CSS.px 14.0)
-                              CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
-                          ]
+                          [ HP.class_ $ wrap tdLabelClass ]
                           [ HH.text "Nickname" ]
                       , HH.td
-                          [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+                          [ HP.class_ $ wrap tdValueClass ]
                           [ HH.input
                               [ HP.type_ HP.InputText
                               , HP.value nickname
@@ -365,34 +318,19 @@ profileSettingsComponent =
                                       liftAff $ Aff.delay $ Milliseconds 500.0
                                       Hooks.raise outputToken $ CheckNickname val
                                     Hooks.put fiberId $ Maybe.Just newFiber
+                              , HP.classes [ wrap inputNicknameClass ]
                               , HCSS.style do
-                                  CSS.width (CSS.px 200.0)
-                                  CSS.padding (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0) (CSS.px 6.0)
                                   traverse_ (CSS.border CSS.solid (CSS.px 2.0)) borderColor
-                                  CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                                  CSS.outlineStyle $ CSS.fromString "none"
                               ]
                           ]
                       ]
                   ]
               ]
           , HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.justifyContent CSSCommon.center
-                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) (CSS.fromHexString "#dee2e6")
-                  CSS.paddingTop (CSS.px 20.0)
-              ]
+              [ HP.class_ $ wrap btnGroupClass ]
               [ HH.button
                   [ HP.disabled (not isValid)
-                  , HCSS.style do
-                      traverse_ CSS.backgroundColor $ CSS.fromHexString "#e9ecef"
-                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#dee2e6"
-                      CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
-                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                      CSS.cursor $ if isValid then CSSCursor.pointer else CSSCursor.notAllowed
-                      CSS.fontWeight CSS.bold
-                      CSS.marginRight (CSS.px 15.0)
+                  , HP.classes [ wrap btnPrimaryClass, wrap btnMrClass, wrap (if isValid then btnPointerClass else btnNotAllowedClass) ]
                   , HE.onClick $ const $ Hooks.raise outputToken $ ChangeNickname nickname
                   ]
                   [ HH.text "Update Profile" ]
@@ -454,30 +392,19 @@ drawSettingsComponent =
     settings /\ settingsId <- Hooks.useState initialSettings
 
     let
-      borderColor = CSS.fromHexString "#dee2e6"
-      primaryBtnColor = CSS.fromHexString "#e9ecef"
-
       -- Helper to render a generic row (Number/Int/String/Color)
       renderInputRow label inputType val minVal maxVal stepVal onChange =
         HH.tr_
           [ HH.td
-              [ HCSS.style do
-                  CSS.fontSize (CSS.px 14.0)
-                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
-              ]
+              [ HP.class_ $ wrap tdLabelClass ]
               [ HH.text label ]
           , HH.td
-              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HP.class_ $ wrap tdValueClass ]
               [ HH.input $
                   [ HP.type_ inputType
                   , HP.value val
                   , HE.onValueInput onChange
-                  , HCSS.style do
-                      CSS.width (CSS.px 60.0)
-                      CSS.padding (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0) (CSS.px 2.0)
-                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                      CSSTextAlign.textAlign CSSTextAlign.center
+                  , HP.class_ $ wrap inputSmallClass
                   ]
                     <> Maybe.maybe [] (pure <<< HP.min) minVal
                     <> Maybe.maybe [] (pure <<< HP.max) maxVal
@@ -490,21 +417,15 @@ drawSettingsComponent =
       renderCheckboxRow label isChecked onToggle =
         HH.tr_
           [ HH.td
-              [ HCSS.style do
-                  CSS.fontSize (CSS.px 14.0)
-                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
-              ]
+              [ HP.class_ $ wrap tdLabelClass ]
               [ HH.text label ]
           , HH.td
-              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HP.class_ $ wrap tdValueClass ]
               [ HH.input
                   [ HP.type_ HP.InputCheckbox
                   , HP.checked isChecked
                   , HE.onChecked \_ -> onToggle (not isChecked)
-                  , HCSS.style do
-                      CSS.width (CSS.px 18.0)
-                      CSS.height (CSS.px 18.0)
-                      CSS.cursor CSSCursor.pointer
+                  , HP.class_ $ wrap inputCheckboxClass
                   ]
               ]
           ]
@@ -512,52 +433,22 @@ drawSettingsComponent =
       -- Render Section Header
       renderHeader title =
         HH.h3
-          [ HCSS.style do
-              CSS.marginTop (CSS.px 0.0)
-              CSS.fontSize (CSS.rem 0.9)
-              traverse_ CSS.color $ CSS.fromHexString "#666"
-              CSS.textTransform CSSTextTransform.uppercase
-              CSS.letterSpacing (CSS.px 1.0)
-              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) borderColor
-              CSS.paddingBottom (CSS.px 10.0)
-              CSS.marginBottom (CSS.px 15.0)
-          ]
+          [ HP.class_ $ wrap sectionHeaderClass ]
           [ HH.text title ]
 
     Hooks.pure $ HH.div
-      [ HCSS.style do
-          CSS.width $ CSS.pct 100.0
-          CSS.height $ CSS.pct 100.0
-          CSS.position CSS.relative
-          CSS.display CSS.flex
-          CSS.justifyContent CSSCommon.center
-          CSS.alignItems CSSCommon.center
-          CSS.backgroundColor CSS.white
-      ]
+      [ HP.class_ $ wrap overlayContainerClass ]
       [ HH.div
-          [ HCSS.style do
-              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
-              CSS.backgroundColor CSS.white
-              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
-          ]
+          [ HP.class_ $ wrap cardPanelClass ]
           [ -- Main Layout: Settings inputs (left) + Preview (right)
             HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.flexDirection CSS.row
-                  CSS.alignItems CSS.flexStart
-              ]
+              [ HP.class_ $ wrap settingsRowClass ]
               [ -- LEFT COLUMN: Settings Inputs
                 HH.div
-                  [ HCSS.style do
-                      CSS.display CSS.flex
-                      CSS.marginBottom (CSS.px 30.0)
-                  ]
+                  [ HP.class_ $ wrap settingsColumnsClass ]
                   [ -- Sub-column 1: Appearance & Options
                     HH.div
-                      [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
+                      [ HP.class_ $ wrap settingsColLeftClass ]
                       [ renderHeader "Appearance"
                       , HH.table_
                           [ renderInputRow "Grid Thickness" HP.InputNumber (show settings.gridThickness) (Maybe.Just 1.0) (Maybe.Just 5.0) (Maybe.Just $ Step 1.0)
@@ -567,7 +458,7 @@ drawSettingsComponent =
                           , renderInputRow "Opacity" HP.InputNumber (show settings.fillingAlpha) (Maybe.Just 0.0) (Maybe.Just 1.0) (Maybe.Just $ Step 0.1)
                               \s -> traverse_ (\v -> Hooks.modify_ settingsId _ { fillingAlpha = v }) (Number.fromString s)
                           ]
-                      , HH.div [ HCSS.style $ CSS.marginTop (CSS.px 20.0) ] []
+                      , HH.div [ HP.class_ $ wrap sectionSpacerClass ] []
                       , renderHeader "Options"
                       , HH.table_
                           [ renderCheckboxRow "Full Fill" settings.fullFill (\v -> Hooks.modify_ settingsId _ { fullFill = v })
@@ -592,21 +483,10 @@ drawSettingsComponent =
                   ]
               , -- RIGHT COLUMN: Live Preview
                 HH.div
-                  [ HCSS.style do
-                      CSS.marginLeft (CSS.px 40.0)
-                      CSS.paddingLeft (CSS.px 40.0)
-                      traverse_ (CSS.borderLeft CSS.solid (CSS.px 1.0)) borderColor
-                  ]
+                  [ HP.class_ $ wrap previewColClass ]
                   [ renderHeader "Preview"
                   , HH.div
-                      [ HCSS.style do
-                          CSS.width (CSS.px 300.0)
-                          CSS.height (CSS.px 300.0)
-                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                          CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 2.0) (CSS.px 6.0) NonEmpty.:| []
-                          CSS.backgroundColor CSS.white
-                      ]
+                      [ HP.class_ $ wrap previewBoxClass ]
                       [ HH.slot
                           _previewField
                           unit
@@ -621,20 +501,9 @@ drawSettingsComponent =
               ]
           , -- Button Group
             HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.justifyContent CSSCommon.center
-                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) borderColor
-                  CSS.paddingTop (CSS.px 20.0)
-              ]
+              [ HP.class_ $ wrap btnGroupClass ]
               [ HH.button
-                  [ HCSS.style do
-                      traverse_ CSS.backgroundColor primaryBtnColor
-                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                      CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
-                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                      CSS.cursor CSSCursor.pointer
-                      CSS.fontWeight CSS.bold
+                  [ HP.classes [ wrap btnPrimaryClass, wrap btnPointerClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken $ UpdateSettings settings
                   ]
                   [ HH.text "Update Settings" ]
@@ -684,20 +553,14 @@ createGameComponent =
           , disabled: false
           }
 
-      borderColor = CSS.fromHexString "#dee2e6"
-      primaryBtnColor = CSS.fromHexString "#e9ecef"
-
       -- Render Helper for Table Rows
       renderRow id label value minVal maxVal isDisabled =
         HH.tr_
           [ HH.td
-              [ HCSS.style do
-                  CSS.fontSize (CSS.px 14.0)
-                  CSS.padding (CSS.px 6.0) (CSS.px 15.0) (CSS.px 6.0) (CSS.px 0.0)
-              ]
+              [ HP.class_ $ wrap tdLabelClass ]
               [ HH.text label ]
           , HH.td
-              [ HCSS.style $ CSS.padding (CSS.px 6.0) (CSS.px 0.0) (CSS.px 6.0) (CSS.px 0.0) ]
+              [ HP.class_ $ wrap tdValueClass ]
               [ HH.input
                   [ HP.id id
                   , HP.type_ HP.InputNumber
@@ -705,12 +568,7 @@ createGameComponent =
                   , HP.min minVal
                   , HP.max maxVal
                   , HP.disabled isDisabled
-                  , HCSS.style do
-                      CSS.width (CSS.px 60.0)
-                      CSS.padding (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0) (CSS.px 5.0)
-                      traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                      CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                      CSSTextAlign.textAlign CSSTextAlign.center
+                  , HP.class_ $ wrap inputCreateClass
                   ]
               ]
           ]
@@ -718,45 +576,19 @@ createGameComponent =
       -- Render Section Header
       renderHeader title =
         HH.h3
-          [ HCSS.style do
-              CSS.marginTop (CSS.px 0.0)
-              CSS.fontSize (CSS.rem 0.9)
-              traverse_ CSS.color $ CSS.fromHexString "#666"
-              CSS.textTransform CSSTextTransform.uppercase
-              CSS.letterSpacing (CSS.px 1.0)
-              traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) borderColor
-              CSS.paddingBottom (CSS.px 10.0)
-              CSS.marginBottom (CSS.px 15.0)
-          ]
+          [ HP.class_ $ wrap sectionHeaderClass ]
           [ HH.text title ]
 
     Hooks.pure $ HH.div
-      [ HCSS.style do
-          CSS.width $ CSS.pct 100.0
-          CSS.height $ CSS.pct 100.0
-          CSS.position CSS.relative
-          CSS.display CSS.flex
-          CSS.justifyContent CSSCommon.center
-          CSS.alignItems CSSCommon.center
-          CSS.backgroundColor CSS.white
-      ]
+      [ HP.class_ $ wrap overlayContainerClass ]
       [ HH.div
-          [ HCSS.style do
-              traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-              CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-              CSS.padding (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0) (CSS.px 30.0)
-              CSS.backgroundColor CSS.white
-              CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
-          ]
+          [ HP.class_ $ wrap cardPanelClass ]
           [ -- Config Grid
             HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.marginBottom (CSS.px 30.0)
-              ]
+              [ HP.class_ $ wrap settingsColumnsClass ]
               [ -- Column 1: Board Size
                 HH.div
-                  [ HCSS.style $ CSS.marginRight (CSS.px 40.0) ]
+                  [ HP.class_ $ wrap settingsColLeftClass ]
                   [ renderHeader "Board Size"
                   , HH.table_
                       [ renderRow "width" "Width" displayState.width 10.0 50.0 displayState.disabled
@@ -775,25 +607,13 @@ createGameComponent =
               ]
           , -- Button Group
             HH.div
-              [ HCSS.style do
-                  CSS.display CSS.flex
-                  CSS.justifyContent CSSCommon.center
-                  traverse_ (CSS.borderTop CSS.solid (CSS.px 1.0)) borderColor
-                  CSS.paddingTop (CSS.px 20.0)
-              ]
+              [ HP.class_ $ wrap btnGroupClass ]
               case existingGame of
                 Maybe.Nothing ->
                   [ HH.button
                       [ HP.disabled $ Maybe.isNothing activePlayerId
                       , HP.title $ if Maybe.isNothing activePlayerId then "You must be signed in to create a game" else ""
-                      , HCSS.style do
-                          traverse_ CSS.backgroundColor primaryBtnColor
-                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
-                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                          CSS.cursor $ if Maybe.isNothing activePlayerId then CSSCursor.notAllowed else CSSCursor.pointer
-                          CSS.fontWeight CSS.bold
-                          CSS.marginRight (CSS.px 15.0)
+                      , HP.classes [ wrap btnPrimaryClass, wrap btnMrClass, wrap (if Maybe.isNothing activePlayerId then btnNotAllowedClass else btnPointerClass) ]
                       , HE.onClick $ const $ do
                           window <- liftEffect $ HTML.window
                           document <- liftEffect $ Window.document window
@@ -817,13 +637,7 @@ createGameComponent =
                       ]
                       [ HH.text "Create game" ]
                   , HH.button
-                      [ HCSS.style do
-                          traverse_ CSS.backgroundColor primaryBtnColor
-                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
-                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                          CSS.cursor CSSCursor.pointer
-                          CSS.fontWeight CSS.bold
+                      [ HP.classes [ wrap btnPrimaryClass, wrap btnPointerClass ]
                       , HE.onClick $ const $ do
                           window <- liftEffect $ HTML.window
                           document <- liftEffect $ Window.document window
@@ -849,13 +663,7 @@ createGameComponent =
                   ]
                 Maybe.Just (Tuple gameId _) ->
                   [ HH.button
-                      [ HCSS.style do
-                          traverse_ CSS.backgroundColor primaryBtnColor
-                          traverse_ (CSS.border CSS.solid (CSS.px 1.0)) borderColor
-                          CSS.padding (CSS.px 10.0) (CSS.px 25.0) (CSS.px 10.0) (CSS.px 25.0)
-                          CSS.borderRadius (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                          CSS.cursor CSSCursor.pointer
-                          CSS.fontWeight CSS.bold
+                      [ HP.classes [ wrap btnPrimaryClass, wrap btnPointerClass ]
                       , HE.onClick $ const $ Hooks.raise outputToken $ CloseGame gameId
                       ]
                       [ HH.text "Cancel game" ]
@@ -906,10 +714,10 @@ menuComponent
 menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
   Hooks.pure $ HH.div
     [ HP.id "menu"
-    , HCSS.style $ CSS.position $ CSS.relative
+    , HP.class_ $ wrap menuPosClass
     ]
     [ HH.div
-        [ HCSS.style $ CSS.cursor CSSCursor.pointer
+        [ HP.class_ $ wrap menuTriggerClass
         , HE.onClick $ const menuOnClick
         , HE.onMouseLeave $ const menuOnMouseLeave
         ] $
@@ -919,12 +727,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
           ( \player ->
               -- show player label + icon when logged in
               [ HH.label
-                  [ HCSS.style do
-                      CSS.cursor CSSCursor.pointer
-                      CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
-                      CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-                      traverse_ CSS.color $ CSS.fromHexString "#333"
-                  ]
+                  [ HP.class_ $ wrap navLabelClass ]
                   [ HH.text player.nickname ]
               , HH.fromPlainHTML svgMenu
               ]
@@ -932,35 +735,23 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
           maybePlayer
     , HH.div
         [ HP.id menuListId
-        , HCSS.style do
-            CSS.position CSS.absolute
-            CSS.top $ CSS.pct 100.0
-            CSS.right $ CSS.px 0.0
-            traverse_ CSS.backgroundColor $ CSS.fromHexString "#fff"
-            traverse_ (CSS.border CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-            CSS.padding (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0) (CSS.px 10.0)
-            CSS.zIndex 1
-            CSS.borderRadius (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0) (CSS.px 8.0)
-            CSS.boxShadow $ (CSS.rgba 0 0 0 0.05) `CSSBox.bsColor` CSSBox.shadowWithBlur (CSS.px 0.0) (CSS.px 4.0) (CSS.px 12.0) NonEmpty.:| []
+        , HP.class_ $ wrap menuDropdownClass
         ]
         [ if Maybe.isJust maybePlayer then
             -- logged-in menu: Sign out + Drawing settings
             HH.div_
               [ HH.button
-                  [ HP.class_ $ wrap "menu-item"
-                  , HCSS.style buttonStyle
+                  [ HP.classes [ wrap "menu-item", wrap buttonClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken MenuSignOut
                   ]
                   [ HH.text "Sign out" ]
               , HH.button
-                  [ HP.class_ $ wrap "menu-item"
-                  , HCSS.style buttonStyle
+                  [ HP.classes [ wrap "menu-item", wrap buttonClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken MenuProfile
                   ]
                   [ HH.text "Profile" ]
               , HH.button
-                  [ HP.class_ $ wrap "menu-item"
-                  , HCSS.style buttonStyle
+                  [ HP.classes [ wrap "menu-item", wrap buttonClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
                   ]
                   [ HH.text "Drawing settings" ]
@@ -971,10 +762,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
               ( if not testBuild then
                   -- normal sign-in button
                   [ HH.button
-                      [ HP.class_ $ wrap "menu-item"
-                      , HCSS.style do
-                          buttonStyle
-                          CSS.width $ CSS.pct 100.0
+                      [ HP.classes [ wrap "menu-item", wrap buttonClass ]
                       , HE.onClick $ const $
                           let
                             rememebrMeEff =
@@ -992,10 +780,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                   -- test build: text input to enter a name
                   [ HH.input
                       [ HP.id "test-name"
-                      , HCSS.style do
-                          CSS.width $ CSS.pct 100.0
-                          CSS.boxSizing $ CSS.fromString "border-box"
-                          CSS.marginBottom $ CSS.px 5.0
+                      , HP.class_ $ wrap testNameInputClass
                       , HE.onKeyDown $ \e -> when (KeyboardEvent.key e == "Enter") do
                           maybeName <- liftEffect do
                             w <- HTML.window
@@ -1009,33 +794,21 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                 <>
                   -- remember-me checkbox + label and drawing settings button
                   [ HH.div
-                      [ HCSS.style do
-                          CSS.width $ CSS.pct 100.0
-                          CSS.display CSS.flex
-                          CSS.justifyContent CSSCommon.center
-                          CSS.padding (CSS.px 5.0) (CSS.px 0.0) (CSS.px 5.0) (CSS.px 0.0)
-                      ]
+                      [ HP.class_ $ wrap rememberMeRowClass ]
                       [ HH.input
                           [ HP.id "remember-me"
                           , HP.type_ HP.InputCheckbox
                           , HP.checked true
-                          , HCSS.style do
-                              CSS.margin (CSS.px 0.0) (CSS.px 3.0) (CSS.px 0.0) (CSS.px 0.0)
-                              CSS.cursor CSSCursor.pointer
+                          , HP.class_ $ wrap rememberMeCheckboxClass
                           ]
                       , HH.label
                           [ HP.for "remember-me"
-                          , HCSS.style $ do
-                              CSS.fontSize (CSS.rem 0.75)
-                              CSS.key (CSS.fromString "white-space") "nowrap"
-                              traverse_ CSS.color $ CSS.fromHexString "#333"
-                              CSS.cursor CSSCursor.pointer
+                          , HP.class_ $ wrap rememberMeLabelClass
                           ]
                           [ HH.text "Remember me" ]
                       ]
                   , HH.button
-                      [ HP.class_ $ wrap "menu-item"
-                      , HCSS.style buttonStyle
+                      [ HP.classes [ wrap "menu-item", wrap buttonClass ]
                       , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
                       ]
                       [ HH.text "Drawing settings" ]
@@ -1075,7 +848,7 @@ svgMenu = SvgElements.svg
   [ SvgAttributes.id hamburgerId
   , SvgAttributes.width 32.0
   , SvgAttributes.height 32.0
-  , HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+  , HP.class_ $ wrap svgValignMiddleClass
   ]
   let
     line c y =
@@ -1162,25 +935,12 @@ renderGameHeader redName blackName timeLeft finished fields =
     [ HH.fromPlainHTML $ countdown (not finished && redTicking) timeLeft.red
     , HH.fromPlainHTML $ svgDot "red"
     , HH.div
-        [ HCSS.style do
-            CSS.display CSS.flex
-            CSS.alignItems CSSCommon.center
-            CSS.fontSize (CSS.rem 0.9)
-        ]
+        [ HP.class_ $ wrap scoreBadgeClass ]
         [ -- Red Player Name
           HH.span_ [ HH.text redName ]
         -- The Score Badge
         , HH.div
-            [ HCSS.style do
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#e0e0e0"
-                traverse_ CSS.color $ CSS.fromHexString "#333"
-                CSS.padding (CSS.px 2.0) (CSS.px 8.0) (CSS.px 2.0) (CSS.px 8.0)
-                CSS.marginLeft (CSS.px 8.0)
-                CSS.marginRight (CSS.px 8.0)
-                CSS.borderRadius (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0) (CSS.px 12.0)
-                CSS.fontWeight CSS.bold
-                CSS.fontFamily [] $ CSSFont.monospace NonEmpty.:| []
-            ]
+            [ HP.class_ $ wrap scoreValueClass ]
             [ HH.text $ show scoreRed <> " : " <> show scoreBlack ]
         -- Black Player Name
         , HH.span_ [ HH.text blackName ]
@@ -1321,25 +1081,12 @@ appComponent =
 
     Hooks.pure
       $ HH.div
-          [ HCSS.style do
-              CSS.width $ CSS.vw 100.0
-              CSS.height $ CSS.vh 100.0
-              CSS.display CSS.flex
-              CSS.flexDirection CSS.column
-          ]
+          [ HP.class_ $ wrap appRootClass ]
       $
         [ HH.div
-            [ HCSS.style do
-                CSS.position CSS.relative
-                CSS.display CSS.flex
-                CSS.justifyContent CSS.spaceBetween
-                CSS.alignItems CSSCommon.center
-                CSS.padding (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5) (CSS.rem 0.5)
-                traverse_ CSS.backgroundColor $ CSS.fromHexString "#f2f2f2"
-                traverse_ (CSS.borderBottom CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-            ]
+            [ HP.class_ $ wrap topBarClass ]
             [ HH.div
-                [ HCSS.style $ CSS.cursor CSSCursor.pointer
+                [ HP.class_ $ wrap logoLinkClass
                 , HE.onClick $ const do
                     unsubscribe
                     Hooks.put watchingGameIdId Maybe.Nothing
@@ -1347,30 +1094,17 @@ appComponent =
                     liftEffect $ putHistoryState AppHistoryStateEmpty
                 ]
                 [ HH.img
-                    [ HCSS.style $ CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
+                    [ HP.class_ $ wrap logoImgClass
                     , HP.src "logo.svg"
                     , HP.width 24
                     ]
                 , HH.label
-                    [ HCSS.style do
-                        CSS.cursor CSSCursor.pointer
-                        CSSVerticalAlign.verticalAlign CSSVerticalAlign.Middle
-                        CSS.padding (CSS.px 5.0) (CSS.px 10.0) (CSS.px 5.0) (CSS.px 10.0)
-                        traverse_ CSS.color $ CSS.fromHexString "#333"
-                    ]
+                    [ HP.class_ $ wrap navLabelClass ]
                     [ HH.text "Kropki"
                     ]
                 ]
             , HH.div
-                [ HCSS.style do
-                    CSS.alignItems CSSCommon.center
-                    CSS.display CSS.flex
-                    CSS.position CSS.absolute
-                    CSS.top (CSS.pct 50.0)
-                    CSS.left (CSS.pct 50.0)
-                    CSS.transform $ CSS.translate (CSS.pct (-50.0)) (CSS.pct (-50.0))
-                    traverse_ CSS.color $ CSS.fromHexString "#333"
-                ] $ case state of
+                [ HP.class_ $ wrap gameHeaderCenterClass ] $ case state of
                 AppStateGame game ->
                   renderGameHeader
                     game.redPlayer.nickname
@@ -1387,7 +1121,7 @@ appComponent =
                     game.fields
                 _ -> []
             , HH.div
-                [ HCSS.style $ CSS.marginLeft CSSCommon.auto
+                [ HP.class_ $ wrap menuWrapperClass
                 ]
                 [ HH.slot
                     _menu
@@ -1416,20 +1150,10 @@ appComponent =
                 ]
             ]
         , HH.div
-            [ HCSS.style do
-                CSS.height $ CSS.pct 100.0
-                CSS.display CSS.flex
-            ]
+            [ HP.class_ $ wrap mainContentClass ]
             [ HH.div
                 [ HP.id "side-panel"
-                , HCSS.style do
-                    CSS.width $ CSS.rem 10.0
-                    CSS.height $ CSS.pct 100.0
-                    CSS.key (CSS.fromString "resize") "horizontal"
-                    traverse_ (CSS.borderRight CSS.solid (CSS.px 1.0)) $ CSS.fromHexString "#ddd"
-                    CSSOverflow.overflow CSSOverflow.overflowAuto
-                    CSS.fontFamily [] $ CSSFont.sansSerif NonEmpty.:| []
-                    traverse_ CSS.backgroundColor $ CSS.fromHexString "#f9f9f9"
+                , HP.class_ $ wrap sidePanelClass
                 ]
                 [ HH.slot
                     _games
@@ -1450,11 +1174,7 @@ appComponent =
                     players
                 ]
             , HH.div
-                [ HCSS.style do
-                    CSS.backgroundColor CSS.white
-                    CSS.flexGrow 2.0
-                    CSS.padding (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0) (CSS.px 4.0)
-                ]
+                [ HP.class_ $ wrap gameAreaClass ]
                 [ case state of
                     AppStateGame game ->
                       let
@@ -1619,6 +1339,129 @@ middleClass = "middle"
 
 bottomClass :: String
 bottomClass = "bottom"
+
+vsLabelClass :: String
+vsLabelClass = "vs-label"
+
+sectionHeaderClass :: String
+sectionHeaderClass = "section-header"
+
+overlayContainerClass :: String
+overlayContainerClass = "overlay-container"
+
+cardPanelClass :: String
+cardPanelClass = "card-panel"
+
+tdLabelClass :: String
+tdLabelClass = "td-label"
+
+tdValueClass :: String
+tdValueClass = "td-value"
+
+inputSmallClass :: String
+inputSmallClass = "input-small"
+
+inputCreateClass :: String
+inputCreateClass = "input-create"
+
+inputCheckboxClass :: String
+inputCheckboxClass = "input-checkbox"
+
+sectionSpacerClass :: String
+sectionSpacerClass = "section-spacer"
+
+settingsColumnsClass :: String
+settingsColumnsClass = "settings-columns"
+
+settingsColLeftClass :: String
+settingsColLeftClass = "settings-col-left"
+
+settingsRowClass :: String
+settingsRowClass = "settings-row"
+
+previewColClass :: String
+previewColClass = "preview-col"
+
+previewBoxClass :: String
+previewBoxClass = "preview-box"
+
+btnGroupClass :: String
+btnGroupClass = "btn-group"
+
+btnPrimaryClass :: String
+btnPrimaryClass = "btn-primary"
+
+btnPointerClass :: String
+btnPointerClass = "btn-pointer"
+
+btnNotAllowedClass :: String
+btnNotAllowedClass = "btn-not-allowed"
+
+btnMrClass :: String
+btnMrClass = "btn-mr"
+
+inputNicknameClass :: String
+inputNicknameClass = "input-nickname"
+
+appRootClass :: String
+appRootClass = "app-root"
+
+topBarClass :: String
+topBarClass = "top-bar"
+
+logoLinkClass :: String
+logoLinkClass = "logo-link"
+
+logoImgClass :: String
+logoImgClass = "logo-img"
+
+navLabelClass :: String
+navLabelClass = "nav-label"
+
+gameHeaderCenterClass :: String
+gameHeaderCenterClass = "game-header-center"
+
+scoreBadgeClass :: String
+scoreBadgeClass = "score-badge"
+
+scoreValueClass :: String
+scoreValueClass = "score-value"
+
+menuWrapperClass :: String
+menuWrapperClass = "menu-wrapper"
+
+mainContentClass :: String
+mainContentClass = "main-content"
+
+sidePanelClass :: String
+sidePanelClass = "side-panel"
+
+gameAreaClass :: String
+gameAreaClass = "game-area"
+
+menuPosClass :: String
+menuPosClass = "menu-pos"
+
+menuTriggerClass :: String
+menuTriggerClass = "menu-trigger"
+
+menuDropdownClass :: String
+menuDropdownClass = "menu-dropdown"
+
+svgValignMiddleClass :: String
+svgValignMiddleClass = "svg-valign-middle"
+
+testNameInputClass :: String
+testNameInputClass = "test-name-input"
+
+rememberMeRowClass :: String
+rememberMeRowClass = "remember-me-row"
+
+rememberMeCheckboxClass :: String
+rememberMeCheckboxClass = "remember-me-checkbox"
+
+rememberMeLabelClass :: String
+rememberMeLabelClass = "remember-me-label"
 
 main :: Effect Unit
 main = do
