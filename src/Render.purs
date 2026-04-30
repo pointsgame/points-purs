@@ -26,7 +26,7 @@ import Data.Tuple.Nested (type (/\), tuple4, (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
 import Field as Field
-import Graphics.Canvas (Context2D, arc, beginPath, clearRect, closePath, fill, lineTo, moveTo, setFillStyle, setGlobalAlpha, setLineWidth, setStrokeStyle, stroke)
+import Graphics.Canvas (Context2D, TextAlign(..), TextBaseline(..), arc, beginPath, clearRect, closePath, fill, fillText, lineTo, moveTo, setFillStyle, setFont, setGlobalAlpha, setLineWidth, setStrokeStyle, setTextAlign, setTextBaseline, stroke)
 import Partial.Unsafe as UnsafePartial
 import Player as Player
 import PolygonMerge (connectHoles, merge)
@@ -43,6 +43,10 @@ type DrawSettings =
   , fullFill :: Boolean
   , extendedFill :: Boolean
   , innerSurroundings :: Boolean
+  , coordsTop :: Boolean
+  , coordsRight :: Boolean
+  , coordsBottom :: Boolean
+  , coordsLeft :: Boolean
   }
 
 defaultDrawSettings :: DrawSettings
@@ -58,6 +62,10 @@ defaultDrawSettings =
   , fullFill: true
   , extendedFill: true
   , innerSurroundings: true
+  , coordsTop: false
+  , coordsRight: false
+  , coordsBottom: false
+  , coordsLeft: false
   }
 
 fromPosXY :: Boolean -> Number -> Int -> Int -> Number
@@ -81,22 +89,48 @@ toPosXY reflection areaSize fieldSize x =
 shift :: Number -> Number -> Number
 shift size balancedSize = toNumber $ floor $ (size - balancedSize) / 2.0
 
-dimensions :: Int -> Int -> Number -> Number -> Number /\ Number /\ Number /\ Number /\ Unit
-dimensions fieldWidth fieldHeight width height =
+type Margins =
+  { top :: Number
+  , right :: Number
+  , bottom :: Number
+  , left :: Number
+  }
+
+noMargins :: Margins
+noMargins = { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 }
+
+coordsMarginFactor :: Number
+coordsMarginFactor = 0.6
+
+coordsMargins :: Boolean -> Boolean -> Boolean -> Boolean -> Number -> Margins
+coordsMargins top right bottom left cellSize =
+  let
+    m = cellSize * coordsMarginFactor
+  in
+    { top: if top then m else 0.0
+    , right: if right then m else 0.0
+    , bottom: if bottom then m else 0.0
+    , left: if left then m else 0.0
+    }
+
+dimensions :: Int -> Int -> Number -> Number -> Margins -> Number /\ Number /\ Number /\ Number /\ Unit
+dimensions fieldWidth fieldHeight width height margins =
   let
     fieldHeight' = toNumber fieldHeight
     fieldWidth' = toNumber fieldWidth
-    width' = min width $ height / fieldHeight' * fieldWidth'
-    height' = min height $ width / fieldWidth' * fieldHeight'
-    shiftX = shift width width'
-    shiftY = shift height height'
+    availWidth = width - margins.left - margins.right
+    availHeight = height - margins.top - margins.bottom
+    width' = min availWidth $ availHeight / fieldHeight' * fieldWidth'
+    height' = min availHeight $ availWidth / fieldWidth' * fieldHeight'
+    shiftX = margins.left + shift availWidth width'
+    shiftY = margins.top + shift availHeight height'
   in
     width' /\ height' /\ shiftX /\ shiftY /\ unit
 
-fromToFieldPos :: Int -> Boolean -> Boolean -> Int -> Int -> Number -> Number -> (Int -> Number) /\ (Int -> Number) /\ (Number -> Int) /\ (Number -> Int) /\ Unit
-fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height =
+fromToFieldPos :: Int -> Boolean -> Boolean -> Int -> Int -> Number -> Number -> Margins -> (Int -> Number) /\ (Int -> Number) /\ (Number -> Int) /\ (Number -> Int) /\ Unit
+fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins =
   let
-    width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height
+    width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height margins
     pixelShift = if gridThickness `mod` 2 == 1 then 0.5 else 0.0
   in
     tuple4
@@ -243,6 +277,10 @@ draw
   , fullFill
   , extendedFill
   , innerSurroundings
+  , coordsTop
+  , coordsRight
+  , coordsBottom
+  , coordsLeft
   }
   surrounded'
   surroundings'
@@ -255,12 +293,17 @@ draw
       headField = NonEmptyList.head fields
       fieldWidth = Field.width headField
       fieldHeight = Field.height headField
-      width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height
+      -- Estimate cell size for margin calculation (use a preliminary computation).
+      prelimCellSize = min (width / toNumber fieldWidth) (height / toNumber fieldHeight)
+      margins = coordsMargins coordsTop coordsRight coordsBottom coordsLeft prelimCellSize
+      width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height margins
       scale = width' / toNumber fieldWidth
-      fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
+      fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
+      coordFontSize = scale * coordsMarginFactor * 0.7
+      coordFont = show (floor coordFontSize) <> "px sans-serif"
     -- Render background.
     setGlobalAlpha context 1.0
     clearRect context { x: 0.0, y: 0.0, width, height }
@@ -277,6 +320,36 @@ draw
       moveTo context shiftX y
       lineTo context (shiftX + width') y
       stroke context
+    -- Render coordinates.
+    when (coordsTop || coordsRight || coordsBottom || coordsLeft) do
+      setFont context coordFont
+      setFillStyle context gridColor
+      -- Top and bottom: column numbers.
+      when (coordsTop || coordsBottom) do
+        setTextAlign context AlignCenter
+        for_ (List.range 0 (fieldWidth - 1)) \x -> do
+          let
+            label = show (x + 1)
+            xPos = fromPosX x
+          when coordsTop do
+            setTextBaseline context BaselineBottom
+            fillText context label xPos (shiftY - scale * coordsMarginFactor * 0.15)
+          when coordsBottom do
+            setTextBaseline context BaselineTop
+            fillText context label xPos (shiftY + height' + scale * coordsMarginFactor * 0.15)
+      -- Left and right: row numbers.
+      when (coordsLeft || coordsRight) do
+        setTextBaseline context BaselineMiddle
+        for_ (List.range 0 (fieldHeight - 1)) \y -> do
+          let
+            label = show (y + 1)
+            yPos = fromPosY y
+          when coordsLeft do
+            setTextAlign context AlignRight
+            fillText context label (shiftX - scale * coordsMarginFactor * 0.15) yPos
+          when coordsRight do
+            setTextAlign context AlignLeft
+            fillText context label (shiftX + width' + scale * coordsMarginFactor * 0.15) yPos
     -- Render points.
     for_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
@@ -365,6 +438,10 @@ drawPointer
   , redColor
   , blackColor
   , pointRadius
+  , coordsTop
+  , coordsRight
+  , coordsBottom
+  , coordsLeft
   }
   width
   height
@@ -381,9 +458,11 @@ drawPointer
           let
             fieldWidth = Field.width headField
             fieldHeight = Field.height headField
-            width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height
+            prelimCellSize = min (width / toNumber fieldWidth) (height / toNumber fieldHeight)
+            margins = coordsMargins coordsTop coordsRight coordsBottom coordsLeft prelimCellSize
+            width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height margins
             scale = width' / toNumber fieldWidth
-            fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
+            fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins
             player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
           setGlobalAlpha context 0.33
           beginPath context

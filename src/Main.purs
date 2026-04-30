@@ -468,7 +468,7 @@ drawSettingsComponent =
                           , renderCheckboxRow "V-Reflection" settings.vReflection (\v -> Hooks.modify_ settingsId _ { vReflection = v })
                           ]
                       ]
-                  , -- Sub-column 2: Colors
+                  , -- Sub-column 2: Colors & Coordinates
                     HH.div_
                       [ renderHeader "Colors"
                       , HH.table_
@@ -478,6 +478,14 @@ drawSettingsComponent =
                               \v -> Hooks.modify_ settingsId _ { redColor = v }
                           , renderInputRow "Black Player" HP.InputColor settings.blackColor Maybe.Nothing Maybe.Nothing Maybe.Nothing
                               \v -> Hooks.modify_ settingsId _ { blackColor = v }
+                          ]
+                      , HH.div [ HP.class_ $ wrap sectionSpacerClass ] []
+                      , renderHeader "Coordinates"
+                      , HH.table_
+                          [ renderCheckboxRow "Top" settings.coordsTop (\v -> Hooks.modify_ settingsId _ { coordsTop = v })
+                          , renderCheckboxRow "Right" settings.coordsRight (\v -> Hooks.modify_ settingsId _ { coordsRight = v })
+                          , renderCheckboxRow "Bottom" settings.coordsBottom (\v -> Hooks.modify_ settingsId _ { coordsBottom = v })
+                          , renderCheckboxRow "Left" settings.coordsLeft (\v -> Hooks.modify_ settingsId _ { coordsLeft = v })
                           ]
                       ]
                   ]

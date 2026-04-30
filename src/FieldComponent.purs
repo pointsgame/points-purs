@@ -7,6 +7,7 @@ import CSS.Overflow as CSSOverflow
 import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (traverse_, for_)
+import Data.Int (toNumber)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
@@ -27,7 +28,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, draw, drawPointer, fromToFieldPos, mergedSurroundings, surrounded)
+import Render (DrawSettings, draw, drawPointer, fromToFieldPos, coordsMargins, mergedSurroundings, surrounded)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -58,7 +59,9 @@ toPos canvas field drawSettings scale x y = do
     hReflection = drawSettings.hReflection
     vReflection = drawSettings.vReflection
     gridThickness = drawSettings.gridThickness
-    _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height
+    prelimCellSize = min (width / toNumber fieldWidth) (height / toNumber fieldHeight)
+    margins = coordsMargins drawSettings.coordsTop drawSettings.coordsRight drawSettings.coordsBottom drawSettings.coordsLeft prelimCellSize
+    _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins
     posX = toGamePosX $ x * scale
     posY = toGamePosY $ y * scale
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
