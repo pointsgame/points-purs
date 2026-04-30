@@ -59,6 +59,7 @@ import Message as Message
 import Player as Player
 import Render (DrawSettings, defaultDrawSettings)
 import SidePanelComponent as SidePanelComponent
+import Sgf as Sgf
 import Type.Proxy (Proxy(..))
 import UsePersistentState as UsePersistentState
 import Web.DOM.DOMTokenList as DOMTokenList
@@ -87,6 +88,7 @@ testBuild = false
 foreign import setCookie :: String -> Effect Unit
 foreign import postMessage :: forall m. Window -> m -> Effect Unit
 foreign import eventData :: Event -> Foreign
+foreign import saveFile :: String -> String -> Effect Unit
 
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
 wsProducer socketRef socketEffect = CRA.produce \emitter ->
@@ -604,6 +606,7 @@ data MenuOutput
   | MenuSignOut
   | MenuDrawSettings
   | MenuProfile
+  | MenuSaveSgf
 
 menuComponent
   :: forall query m
@@ -653,6 +656,11 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                   , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
                   ]
                   [ HH.text "Drawing settings" ]
+              , HH.button
+                  [ HP.classes [ wrap "menu-item", wrap buttonClass ]
+                  , HE.onClick $ const $ Hooks.raise outputToken MenuSaveSgf
+                  ]
+                  [ HH.text "Save SGF" ]
               ]
           else
             -- logged-out menu: Sign in (or test input) + Remember me + Drawing settings
@@ -710,6 +718,11 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                       , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
                       ]
                       [ HH.text "Drawing settings" ]
+                  , HH.button
+                      [ HP.classes [ wrap "menu-item", wrap buttonClass ]
+                      , HE.onClick $ const $ Hooks.raise outputToken MenuSaveSgf
+                      ]
+                      [ HH.text "Save SGF" ]
                   ]
         ]
     ]
@@ -1105,6 +1118,15 @@ appComponent =
                         Hooks.put watchingGameIdId Maybe.Nothing
                         Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
                         liftEffect $ putHistoryState AppHistoryStateProfile
+                      MenuSaveSgf -> do
+                        state' <- Hooks.get stateId
+                        let
+                          maybeFields = case state' of
+                            AppStateGame game -> Maybe.Just game.fields
+                            AppStateLocalGame game -> Maybe.Just game.fields
+                            _ -> Maybe.Nothing
+                        for_ maybeFields \fields ->
+                          liftEffect $ saveFile "game.sgf" $ Sgf.fieldsToSgf fields
                 ]
             ]
         , HH.div
