@@ -396,10 +396,15 @@ drawSettingsComponent =
             HH.div
               [ HP.class_ $ wrap btnGroupClass ]
               [ HH.button
-                  [ HP.classes [ wrap btnPrimaryClass, wrap btnPointerClass ]
+                  [ HP.classes [ wrap btnPrimaryClass, wrap btnMrClass, wrap btnPointerClass ]
                   , HE.onClick $ const $ Hooks.raise outputToken $ UpdateSettings settings
                   ]
                   [ HH.text "Update Settings" ]
+              , HH.button
+                  [ HP.classes [ wrap btnPrimaryClass, wrap btnPointerClass ]
+                  , HE.onClick $ const $ Hooks.put settingsId defaultDrawSettings
+                  ]
+                  [ HH.text "Reset to Default" ]
               ]
           ]
       ]

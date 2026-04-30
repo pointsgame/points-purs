@@ -62,10 +62,10 @@ defaultDrawSettings =
   , fullFill: true
   , extendedFill: true
   , innerSurroundings: true
-  , coordsTop: false
-  , coordsRight: false
-  , coordsBottom: false
-  , coordsLeft: false
+  , coordsTop: true
+  , coordsRight: true
+  , coordsBottom: true
+  , coordsLeft: true
   }
 
 fromPosXY :: Boolean -> Number -> Int -> Int -> Number
