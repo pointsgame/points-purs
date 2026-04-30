@@ -20,7 +20,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Field (Field, Pos)
 import Field as Field
-import Graphics.Canvas (CanvasElement, Context2D, getCanvasElementById, getCanvasHeight, getCanvasWidth, getContext2D, setCanvasHeight, setCanvasWidth)
+import Graphics.Canvas (CanvasElement, Context2D, clearRect, getCanvasElementById, getCanvasHeight, getCanvasWidth, getContext2D, setCanvasHeight, setCanvasWidth)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HCSS
@@ -165,14 +165,23 @@ fieldComponent =
                   $ lift
                   $ Hooks.raise outputToken
                   $ Click pos
-            , HE.onMouseMove \e -> liftEffect $ void $ runMaybeT do
-                window <- lift HTML.window
-                let dpr = devicePixelRatio window
+            , HE.onMouseMove \e -> liftEffect do
+                void $ runMaybeT do
+                  window <- lift HTML.window
+                  let dpr = devicePixelRatio window
+                  canvas <- wrap $ getCanvasElementById "canvas-pointer"
+                  width <- lift $ getCanvasWidth canvas
+                  height <- lift $ getCanvasHeight canvas
+                  context <- lift $ getContext2D canvas
+                  mpos <- lift $ toPos canvas (NonEmptyList.head input.fields) input.drawSettings dpr (offsetX e) (offsetY e)
+                  case mpos of
+                    Just pos -> lift $ drawPointer input.drawSettings width height input.fields pos context
+                    Nothing -> lift $ clearRect context { x: 0.0, y: 0.0, width, height }
+            , HE.onMouseLeave \_ -> liftEffect $ void $ runMaybeT do
                 canvas <- wrap $ getCanvasElementById "canvas-pointer"
                 width <- lift $ getCanvasWidth canvas
                 height <- lift $ getCanvasHeight canvas
                 context <- lift $ getContext2D canvas
-                pos <- wrap $ toPos canvas (NonEmptyList.head input.fields) input.drawSettings dpr (offsetX e) (offsetY e)
-                lift $ drawPointer input.drawSettings width height input.fields pos context
+                lift $ clearRect context { x: 0.0, y: 0.0, width, height }
             ]
         ]
