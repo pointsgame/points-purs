@@ -441,6 +441,14 @@ body {
   min-height: 0;
 }
 
+/* Canvases used for the field rendering. Disable any compositor-level
+   smoothing so 1-device-pixel grid lines stay crisp on displays whose
+   devicePixelRatio is fractional (most Android devices, e.g. 2.625, 2.75). */
+.game-area canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 /* Menu position */
 .menu-pos {
   position: relative;

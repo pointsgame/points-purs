@@ -8,7 +8,7 @@ import Control.Monad.Maybe.Trans (mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array as Array
 import Data.Foldable (traverse_, for_, sum)
-import Data.Int (toNumber)
+import Data.Int (round, toNumber)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
@@ -52,6 +52,7 @@ foreign import offsetY :: MouseEvent -> Number
 -- Forces software rendering on canvas, needed because hardware rendering is buggy in firefox.
 foreign import getContext2DThatWillReadFrequently :: CanvasElement -> Effect Context2D
 foreign import devicePixelRatio :: HTML.Window -> Number
+foreign import setCanvasCssSize :: CanvasElement -> Number -> Number -> Effect Unit
 foreign import wheelDeltaY :: WheelEvent -> Number
 foreign import wheelOffsetX :: WheelEvent -> Number
 foreign import wheelOffsetY :: WheelEvent -> Number
@@ -219,9 +220,19 @@ fieldComponent =
       let
         setCanvasSize canvas = for_ size \{ width, height } -> do
           window <- HTML.window
-          let dpr = devicePixelRatio window
-          setCanvasWidth canvas $ width * dpr
-          setCanvasHeight canvas $ height * dpr
+          let
+            dpr = devicePixelRatio window
+            -- Snap the internal pixel buffer to whole device pixels so that the
+            -- browser displays the canvas at a 1:1 scale and no blur is added
+            -- when blitting it. The CSS size is then set to the matching
+            -- fractional CSS pixel count instead of the default `100%`, which
+            -- could otherwise round to a different device-pixel size than the
+            -- backing buffer.
+            deviceW = toNumber $ round $ width * dpr
+            deviceH = toNumber $ round $ height * dpr
+          setCanvasWidth canvas deviceW
+          setCanvasHeight canvas deviceH
+          setCanvasCssSize canvas (deviceW / dpr) (deviceH / dpr)
       liftEffect $ bind (getCanvasElementById "canvas") $ traverse_ $ \canvas -> do
         setCanvasSize canvas
         window <- HTML.window
@@ -233,7 +244,8 @@ fieldComponent =
         context <- getContext2DThatWillReadFrequently canvas
         clearRect context { x: 0.0, y: 0.0, width, height }
         withContext context do
-          translate context { translateX: -t.x * dpr, translateY: -t.y * dpr }
+          -- Snap the pan offset to whole device pixels so grid lines stay crisp.
+          translate context { translateX: -(toNumber $ round $ t.x * dpr), translateY: -(toNumber $ round $ t.y * dpr) }
           draw input.drawSettings surrounded' surroundings (width * t.scale) (height * t.scale) input.fields context
         bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
           setCanvasSize canvasPointer
@@ -321,7 +333,7 @@ fieldComponent =
                   lift $ clearRect context { x: 0.0, y: 0.0, width, height }
                   case mpos of
                     Just pos -> lift $ withContext context do
-                      translate context { translateX: -transform.x * dpr, translateY: -transform.y * dpr }
+                      translate context { translateX: -(toNumber $ round $ transform.x * dpr), translateY: -(toNumber $ round $ transform.y * dpr) }
                       drawPointer input.drawSettings (width * transform.scale) (height * transform.scale) input.fields pos context
                     Nothing -> pure unit
             , HE.onMouseLeave \_ -> liftEffect $ void $ runMaybeT do
