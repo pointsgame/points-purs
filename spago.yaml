@@ -24,6 +24,8 @@ package:
     - halogen-hooks
     - halogen-css
     - web-url
+    - web-touchevents
+    - web-uievents
     - datetime
     - now
     - halogen-svg-elems
