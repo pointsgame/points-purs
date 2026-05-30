@@ -30,7 +30,7 @@ body {
   }
 }
 
-#menu:hover:not(.closed) {
+#menu.open {
   #menu-list {
     visibility: visible;
     opacity: 1;
@@ -48,6 +48,32 @@ body {
     }
     .bottom {
       transform: translateY(-8px) rotate(-45deg);
+    }
+  }
+}
+
+/* Hover-to-open only on devices that actually support hover (mouse).
+   Touch devices would otherwise emulate hover on tap and cause flickering. */
+@media (hover: hover) {
+  #menu:hover {
+    #menu-list {
+      visibility: visible;
+      opacity: 1;
+      transition:
+        opacity 0.3s,
+        visibility 0s;
+    }
+
+    #hamburger {
+      .top {
+        transform: translateY(8px) rotate(45deg);
+      }
+      .middle {
+        transform: rotateY(90deg);
+      }
+      .bottom {
+        transform: translateY(-8px) rotate(-45deg);
+      }
     }
   }
 }

@@ -582,20 +582,20 @@ menuOnClick = liftEffect $ do
   void $ runMaybeT $ do
     menu <- wrap $ getElementById "menu" (Document.toNonElementParentNode document)
     classes <- lift $ Element.classList menu
-    contains <- lift $ DOMTokenList.contains classes "closed"
+    contains <- lift $ DOMTokenList.contains classes "open"
     if contains then
-      lift $ DOMTokenList.remove classes "closed"
+      lift $ DOMTokenList.remove classes "open"
     else
-      lift $ DOMTokenList.add classes "closed"
+      lift $ DOMTokenList.add classes "open"
 
-menuOnMouseLeave :: forall e. MonadEffect e => e Unit
-menuOnMouseLeave = liftEffect $ do
+closeMenu :: forall e. MonadEffect e => e Unit
+closeMenu = liftEffect $ do
   window <- HTML.window
   document <- Window.document window
   void $ runMaybeT $ do
     menu <- wrap $ getElementById "menu" (Document.toNonElementParentNode document)
     classes <- lift $ Element.classList menu
-    lift $ DOMTokenList.remove classes "closed"
+    lift $ DOMTokenList.remove classes "open"
 
 _menu :: Proxy "menu"
 _menu = Proxy
@@ -621,7 +621,6 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
     [ HH.div
         [ HP.class_ $ wrap menuTriggerClass
         , HE.onClick $ const menuOnClick
-        , HE.onMouseLeave $ const menuOnMouseLeave
         ] $
         Maybe.maybe
           -- only icon when logged out
@@ -644,22 +643,22 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
             HH.div_
               [ HH.button
                   [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuSignOut
+                  , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuSignOut
                   ]
                   [ HH.text "Sign out" ]
               , HH.button
                   [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuProfile
+                  , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuProfile
                   ]
                   [ HH.text "Profile" ]
               , HH.button
                   [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
+                  , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuDrawSettings
                   ]
                   [ HH.text "Drawing settings" ]
               , HH.button
                   [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                  , HE.onClick $ const $ Hooks.raise outputToken MenuSaveSgf
+                  , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuSaveSgf
                   ]
                   [ HH.text "Save SGF" ]
               ]
@@ -679,7 +678,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                                 maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "remember-me" (Document.toNonElementParentNode d)
                                 Maybe.maybe (pure false) HTMLInputElement.checked maybeInput
                           in
-                            rememebrMeEff >>= (Hooks.raise outputToken <<< MenuSignIn)
+                            closeMenu *> (rememebrMeEff >>= (Hooks.raise outputToken <<< MenuSignIn))
                       ]
                       [ HH.text "Sign in" ]
                   ]
@@ -694,7 +693,7 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                             d <- Window.document w
                             maybeInput <- map (_ >>= HTMLInputElement.fromElement) $ getElementById "test-name" (Document.toNonElementParentNode d)
                             traverse HTMLInputElement.value maybeInput
-                          for_ maybeName \name -> Hooks.raise outputToken $ MenuSignInTest name
+                          for_ maybeName \name -> closeMenu *> Hooks.raise outputToken (MenuSignInTest name)
                       ]
                   ]
               )
@@ -716,12 +715,12 @@ menuComponent = Hooks.component \{ outputToken } maybePlayer -> Hooks.do
                       ]
                   , HH.button
                       [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                      , HE.onClick $ const $ Hooks.raise outputToken MenuDrawSettings
+                      , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuDrawSettings
                       ]
                       [ HH.text "Drawing settings" ]
                   , HH.button
                       [ HP.classes [ wrap "menu-item", wrap buttonClass ]
-                      , HE.onClick $ const $ Hooks.raise outputToken MenuSaveSgf
+                      , HE.onClick $ const $ closeMenu *> Hooks.raise outputToken MenuSaveSgf
                       ]
                       [ HH.text "Save SGF" ]
                   ]
