@@ -45,27 +45,37 @@ sidePanelComponent
   => H.Component query Input Output m
 sidePanelComponent =
   Hooks.component \{ outputToken } input -> Hooks.do
+    collapsed /\ collapsedId <- Hooks.useState false
     Hooks.pure $ HH.div
       [ HP.id "side-panel"
-      , HP.class_ $ wrap sidePanelClass
+      , HP.classes $ map wrap $ [ sidePanelClass ] <> if collapsed then [ sidePanelCollapsedClass ] else []
       ]
-      [ HH.slot
-          _games
-          unit
-          gamesComponent
-          (input.activePlayerId /\ input.games)
-          \gameId -> Hooks.raise outputToken $ WatchGame gameId
-      , HH.slot
-          _openGames
-          unit
-          openGamesComponent
-          (input.activePlayerId /\ input.openGames)
-          \gameId -> Hooks.raise outputToken $ JoinGame gameId
-      , HH.slot_
-          _players
-          unit
-          playersComponent
-          input.players
+      [ HH.button
+          [ HP.class_ $ wrap sidePanelToggleClass
+          , HP.title $ if collapsed then "Expand" else "Collapse"
+          , HE.onClick $ const $ Hooks.modify_ collapsedId not
+          ]
+          [ HH.text $ if collapsed then "»" else "«" ]
+      , HH.div
+          [ HP.class_ $ wrap sidePanelContentClass ]
+          [ HH.slot
+              _games
+              unit
+              gamesComponent
+              (input.activePlayerId /\ input.games)
+              \gameId -> Hooks.raise outputToken $ WatchGame gameId
+          , HH.slot
+              _openGames
+              unit
+              openGamesComponent
+              (input.activePlayerId /\ input.openGames)
+              \gameId -> Hooks.raise outputToken $ JoinGame gameId
+          , HH.slot_
+              _players
+              unit
+              playersComponent
+              input.players
+          ]
       ]
 
 gamesComponent
@@ -198,3 +208,12 @@ vsLabelClass = "vs-label"
 
 sidePanelClass :: String
 sidePanelClass = "side-panel"
+
+sidePanelCollapsedClass :: String
+sidePanelCollapsedClass = "side-panel-collapsed"
+
+sidePanelToggleClass :: String
+sidePanelToggleClass = "side-panel-toggle"
+
+sidePanelContentClass :: String
+sidePanelContentClass = "side-panel-content"
