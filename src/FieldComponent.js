@@ -9,7 +9,6 @@ export const setCanvasCssSize = canvas => w => h => () => {
   canvas.style.width = w + "px";
   canvas.style.height = h + "px";
 };
-export const wheelDeltaY = event => event.deltaY;
 export const wheelOffsetX = event => event.offsetX;
 export const wheelOffsetY = event => event.offsetY;
 // Returns the active touch points relative to the top-left of the event target.

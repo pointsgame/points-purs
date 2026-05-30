@@ -44,6 +44,7 @@ import Web.HTML.Window as Window
 import Web.TouchEvent.TouchEvent (TouchEvent)
 import Web.TouchEvent.TouchEvent as TouchEvent
 import Web.UIEvent.MouseEvent (MouseEvent)
+import Web.UIEvent.MouseEvent as MouseEvent
 import Web.UIEvent.WheelEvent (WheelEvent)
 import Web.UIEvent.WheelEvent as WheelEvent
 
@@ -53,7 +54,6 @@ foreign import offsetY :: MouseEvent -> Number
 foreign import getContext2DThatWillReadFrequently :: CanvasElement -> Effect Context2D
 foreign import devicePixelRatio :: HTML.Window -> Number
 foreign import setCanvasCssSize :: CanvasElement -> Number -> Number -> Effect Unit
-foreign import wheelDeltaY :: WheelEvent -> Number
 foreign import wheelOffsetX :: WheelEvent -> Number
 foreign import wheelOffsetY :: WheelEvent -> Number
 foreign import touchPositions :: TouchEvent -> Effect (Array Point)
@@ -261,11 +261,20 @@ fieldComponent =
           , HE.onWheel \e -> do
               liftEffect $ Event.preventDefault $ WheelEvent.toEvent e
               for_ size \{ width, height } -> do
-                let
-                  cx = wheelOffsetX e
-                  cy = wheelOffsetY e
-                  factor = if wheelDeltaY e < 0.0 then 1.1 else 1.0 / 1.1
-                Hooks.modify_ transformId \t -> zoomAround width height cx cy (t.scale * factor) t
+                let me = WheelEvent.toMouseEvent e
+                if MouseEvent.ctrlKey me then do
+                  let
+                    cx = wheelOffsetX e
+                    cy = wheelOffsetY e
+                    factor = if WheelEvent.deltaY e < 0.0 then 1.1 else 1.0 / 1.1
+                  Hooks.modify_ transformId \t -> zoomAround width height cx cy (t.scale * factor) t
+                else
+                  Hooks.modify_ transformId \t ->
+                    clampTransform width height
+                      { scale: t.scale
+                      , x: t.x + WheelEvent.deltaX e
+                      , y: t.y + WheelEvent.deltaY e
+                      }
           , HE.onTouchStart \e -> liftEffect do
               positions <- touchPositions e
               Ref.write positions gestureRef
