@@ -382,7 +382,7 @@ body {
   background-color: #fff;
   border: solid 1px #ddd;
   padding: 10px;
-  z-index: 1;
+  z-index: 20;
   border-radius: 8px;
   box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
 }
@@ -419,4 +419,128 @@ body {
   white-space: nowrap;
   color: #333;
   cursor: pointer;
+}
+
+/* ── Mobile responsive ── */
+
+@media (max-width: 600px) {
+  /* Stack main content vertically */
+  .main-content {
+    flex-direction: column;
+  }
+
+  /* Side panel becomes a horizontal strip */
+  .side-panel {
+    width: 100% !important;
+    height: auto;
+    max-height: 30vh;
+    resize: none;
+    border-right: none;
+    border-bottom: solid 1px #ddd;
+  }
+
+  /* Game area fills remaining space */
+  .game-area {
+    flex-grow: 1;
+    min-height: 0;
+  }
+
+  /* Game header: allow wrapping on small screens */
+  .game-header-center {
+    position: static;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.8rem;
+  }
+
+  /* Top bar: tighter padding */
+  .top-bar {
+    padding: 0.3rem;
+    flex-wrap: wrap;
+  }
+
+  /* Card panels: full width, less padding */
+  .card-panel {
+    padding: 15px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Settings: stack columns vertically */
+  .settings-columns {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .settings-col-left {
+    margin-right: 0;
+    margin-bottom: 15px;
+  }
+
+  .settings-row {
+    flex-direction: column;
+  }
+
+  /* Preview column: remove left border, full width */
+  .preview-col {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: solid 1px #dee2e6;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Preview box: responsive size */
+  .preview-box {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  /* Overlay: allow scrolling */
+  .overlay-container {
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  /* Nav label: smaller */
+  .nav-label {
+    padding: 3px 5px;
+    font-size: 0.85rem;
+  }
+
+  /* Score badges: tighter */
+  .score-badge {
+    font-size: 0.8rem;
+  }
+
+  .score-value {
+    padding: 1px 5px;
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  /* Nickname input: full width */
+  .input-nickname {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Button group: allow wrapping */
+  .btn-group {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-primary.btn-mr {
+    margin-right: 0;
+  }
 }
