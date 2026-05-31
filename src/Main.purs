@@ -6,7 +6,7 @@ import CSS as CSS
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
 import Control.Coroutine.Aff as CRA
-import Control.Monad.Except (Except, runExcept)
+import Control.Monad.Except (runExcept)
 import Control.Monad.Maybe.Trans (MaybeT(..), mapMaybeT, runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Countdown (countdown)
@@ -25,6 +25,8 @@ import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
 import Data.Number as Number
+import Data.String (Pattern(..))
+import Data.String as String
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -41,8 +43,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
-import Foreign (Foreign, ForeignError, readString, unsafeToForeign, unsafeFromForeign, isNull, isUndefined)
-import Foreign.Index ((!))
+import Foreign (Foreign, readString, unsafeToForeign, unsafeFromForeign, isNull, isUndefined)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -75,7 +76,6 @@ import Web.HTML.HTMLDocument as Document
 import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.History as History
 import Web.HTML.Location as Location
-import Web.HTML.Window (Window)
 import Web.HTML.Window as Window
 import Web.Socket.Event.EventTypes as WSET
 import Web.Socket.Event.MessageEvent as ME
@@ -87,8 +87,20 @@ testBuild :: Boolean
 testBuild = false
 
 foreign import setCookie :: String -> Effect Unit
-foreign import postMessage :: forall m. Window -> m -> Effect Unit
+foreign import getCookie :: Effect String
 foreign import eventData :: Event -> Foreign
+
+getAuthCookie :: Effect (Maybe String)
+getAuthCookie = do
+  cookies <- getCookie
+  pure $ Array.findMap parseCookiePair $ String.split (Pattern "; ") cookies
+  where
+  parseCookiePair pair = case String.indexOf (Pattern "=") pair of
+    Maybe.Nothing -> Maybe.Nothing
+    Maybe.Just i ->
+      if String.take i pair == "kropki_auth" then Maybe.Just $ String.drop (i + 1) pair
+      else Maybe.Nothing
+
 foreign import saveFile :: String -> String -> Effect Unit
 
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
@@ -1046,13 +1058,15 @@ appComponent =
               liftEffect $ putHistoryState $ AppHistoryStateGame gameId
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
-          Message.AuthUrlResponse url -> liftEffect $ do
+          Message.AuthUrlResponse url authCookie -> liftEffect $ do
+            setCookie $ "kropki_auth=" <> authCookie <> "; Path=/"
             window <- HTML.window
-            _ <- Window.open url "_blank" "" window
-            pure unit
+            location <- Window.location window
+            Location.assign url location
           Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
             liftEffect $ setCookie cookie
+            liftEffect $ setCookie "kropki_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
           Message.PlayerJoinedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.PlayerLeftResponse playerId ->
@@ -1345,29 +1359,6 @@ appComponent =
             ]
         ]
 
-checkRedirect :: Window -> Effect Boolean
-checkRedirect window = do
-  maybeOpener <- Window.opener window
-  flip (Maybe.maybe (pure false)) maybeOpener \opener -> do
-    location <- Window.location window
-    url <- Location.search location
-    let
-      searchParams = URLSearchParams.fromString url
-      maybeCode = URLSearchParams.get "code" searchParams
-      maybeState = URLSearchParams.get "state" searchParams
-    flip (Maybe.maybe (pure false)) (Tuple <$> maybeCode <*> maybeState) \(Tuple code state) -> do
-      postMessage opener { code, state }
-      Window.close window
-      pure true
-
-type ChildMessage = { code :: String, state :: String }
-
-readChildMessage :: Foreign -> Except (NonEmptyList.NonEmptyList ForeignError) ChildMessage
-readChildMessage value = do
-  code <- value ! "code" >>= readString
-  state <- value ! "state" >>= readString
-  pure { code, state }
-
 menuListId :: String
 menuListId = "menu-list"
 
@@ -1524,50 +1515,54 @@ btnDrawOpponentClass = "btn-draw-opponent"
 main :: Effect Unit
 main = do
   window <- HTML.window
-  redirect <- checkRedirect window
-  unless redirect do
-    let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
-    connection <- connectionEffect
-    connectionRef <- Ref.new connection
+  let connectionEffect = WS.create (if testBuild then "ws://127.0.0.1:8080" else "wss://kropki.org/ws") []
+  connection <- connectionEffect
+  connectionRef <- Ref.new connection
 
-    listener <- EET.eventListener \event ->
-      for_ (runExcept $ readChildMessage $ eventData event) $ \message ->
-        wsSender connectionRef $ Message.AuthRequest message.code message.state
-    EET.addEventListener (wrap "message") listener true $ Window.toEventTarget window
+  location <- Window.location window
+  history <- Window.history window
+  search <- liftEffect $ Location.search location
+  currentPath <- liftEffect $ Location.pathname location
+  let
+    searchParams = URLSearchParams.fromString search
+    maybeGameId = URLSearchParams.get "game" searchParams
+    maybeCode = URLSearchParams.get "code" searchParams
+    maybeState = URLSearchParams.get "state" searchParams
+    maybeAuth = Tuple <$> maybeCode <*> maybeState
+    cleanedSearchParams = URLSearchParams.delete "code" $ URLSearchParams.delete "state" searchParams
+    cleanedStr = URLSearchParams.toString cleanedSearchParams
+    cleanedUrl = currentPath <> if cleanedStr == "" then "" else "?" <> cleanedStr
+  History.replaceState (unsafeToForeign AppHistoryStateEmpty) (History.DocumentTitle "kropki") (History.URL cleanedUrl) history
 
-    location <- Window.location window
-    currentHref <- Location.href location
-    history <- Window.history window
-    History.replaceState (unsafeToForeign AppHistoryStateEmpty) (History.DocumentTitle "kropki") (History.URL currentHref) history
-    search <- liftEffect $ Location.search location
-    let
-      searchParams = URLSearchParams.fromString search
-      maybeGameId = URLSearchParams.get "game" searchParams
+  HA.runHalogenAff do
+    body <- HA.awaitBody
+    CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
+      input <-
+        let
+          read = CR.await >>= case _ of
+            Message.InitResponse playerId players openGames games ->
+              pure { playerId, players, openGames, games, watchingGameId: maybeGameId }
+            other -> (Console.warn $ "Unexpected first message: " <> show other) *> read
+        in
+          read
 
-    HA.runHalogenAff do
-      body <- HA.awaitBody
-      CR.runProcess $ wsProducer connectionRef connectionEffect CR.$$ do
-        input <-
-          let
-            read = CR.await >>= case _ of
-              Message.InitResponse playerId players openGames games ->
-                pure { playerId, players, openGames, games, watchingGameId: maybeGameId }
-              other -> (Console.warn $ "Unexpected first message: " <> show other) *> read
-          in
-            read
+      H.liftEffect $ for_ maybeGameId $ (wsSender connectionRef <<< Message.SubscribeRequest)
 
-        H.liftEffect $ for_ maybeGameId $ (wsSender connectionRef <<< Message.SubscribeRequest)
+      H.liftEffect $ for_ maybeAuth \(Tuple code state) -> do
+        maybeAuthCookie <- getAuthCookie
+        for_ maybeAuthCookie \authCookie ->
+          wsSender connectionRef $ Message.AuthRequest code state authCookie
 
-        io <- lift $ runUI appComponent input body
+      io <- lift $ runUI appComponent input body
 
-        _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
+      _ <- H.liftEffect $ HS.subscribe io.messages $ wsSender connectionRef
 
-        popStateListener <- H.liftEffect $ EET.eventListener \ev ->
-          for_ (PopStateEvent.fromEvent ev) \pse -> do
-            let foreignState = PopStateEvent.state pse
-            unless (isNull foreignState || isUndefined foreignState) do
-              let state = unsafeFromForeign foreignState
-              Aff.launchAff_ $ void $ io.query $ H.mkTell $ AppQueryHistory state
-        H.liftEffect $ EET.addEventListener (wrap "popstate") popStateListener false (Window.toEventTarget window)
+      popStateListener <- H.liftEffect $ EET.eventListener \ev ->
+        for_ (PopStateEvent.fromEvent ev) \pse -> do
+          let foreignState = PopStateEvent.state pse
+          unless (isNull foreignState || isUndefined foreignState) do
+            let state = unsafeFromForeign foreignState
+            Aff.launchAff_ $ void $ io.query $ H.mkTell $ AppQueryHistory state
+      H.liftEffect $ EET.addEventListener (wrap "popstate") popStateListener false (Window.toEventTarget window)
 
-        CR.consumer \response -> (io.query $ H.mkTell $ AppQueryMessage response) *> pure Maybe.Nothing
+      CR.consumer \response -> (io.query $ H.mkTell $ AppQueryMessage response) *> pure Maybe.Nothing

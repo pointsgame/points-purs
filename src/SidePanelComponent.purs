@@ -10,7 +10,6 @@ import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Foldable (elem)
 import Data.Newtype (wrap)
-import Data.Ord (comparing)
 import Data.Ord.Down (Down(..))
 import Data.Tuple (Tuple(..), snd)
 import Data.Tuple.Nested ((/\), type (/\))

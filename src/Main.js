@@ -1,5 +1,5 @@
 export const setCookie = cookie => () => window.document.cookie = cookie;
-export const postMessage = window => message => () => window.postMessage(message);
+export const getCookie = () => window.document.cookie;
 export const eventData = event => event.data;
 export const saveFile = filename => content => () => {
   const blob = new Blob([content], { type: "application/x-smartgame" });

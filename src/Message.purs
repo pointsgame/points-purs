@@ -134,7 +134,7 @@ instance Show GameResult where
 
 data Request
   = GetAuthUrlRequest Boolean
-  | AuthRequest String String
+  | AuthRequest String String String
   | AuthTestRequest String
   | SignOutRequest
   | CreateRequest GameConfig
@@ -157,7 +157,7 @@ instance Show Request where
 
 instance EncodeJson Request where
   encodeJson (GetAuthUrlRequest rememberMe) = "command" := "GetAuthUrl" ~> "rememberMe" := rememberMe ~> jsonEmptyObject
-  encodeJson (AuthRequest code state) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> jsonEmptyObject
+  encodeJson (AuthRequest code state authCookie) = "command" := "Auth" ~> "code" := code ~> "state" := state ~> "authCookie" := authCookie ~> jsonEmptyObject
   encodeJson (AuthTestRequest name) = "command" := "AuthTest" ~> "name" := name ~> jsonEmptyObject
   encodeJson SignOutRequest = "command" := "SignOut" ~> jsonEmptyObject
   encodeJson (CreateRequest config) = "command" := "Create" ~> "config" := config ~> jsonEmptyObject
@@ -174,7 +174,7 @@ instance EncodeJson Request where
 data Response
   = InitResponse (Maybe PlayerId) (Map PlayerId Player) (Map GameId OpenGame) (Map GameId Game)
   | GameInitResponse GameId Game (Array Move) Instant (Maybe Color) TimeLeft (Maybe GameResult)
-  | AuthUrlResponse String
+  | AuthUrlResponse String String
   | AuthResponse PlayerId String
   | PlayerJoinedResponse PlayerId Player
   | PlayerLeftResponse PlayerId
@@ -216,7 +216,7 @@ instance DecodeJson Response where
         <*> obj .:? "drawOffer"
         <*> obj .: "timeLeft"
         <*> obj .: "result"
-      "AuthUrl" -> AuthUrlResponse <$> obj .: "url"
+      "AuthUrl" -> AuthUrlResponse <$> obj .: "url" <*> obj .: "authCookie"
       "Auth" -> AuthResponse <$> obj .: "playerId" <*> obj .: "cookie"
       "PlayerJoined" -> PlayerJoinedResponse <$> obj .: "playerId" <*> obj .: "player"
       "PlayerLeft" -> PlayerLeftResponse <$> obj .: "playerId"
