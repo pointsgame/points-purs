@@ -9,7 +9,9 @@ import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Foldable (elem)
 import Data.Newtype (wrap)
-import Data.Tuple (Tuple(..))
+import Data.Ord (comparing)
+import Data.Ord.Down (Down(..))
+import Data.Tuple (Tuple(..), snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -145,32 +147,39 @@ openGamesComponent =
               $ Map.toUnfoldableUnordered openGames
           )
 
+highVolatilityThreshold :: Number
+highVolatilityThreshold = 0.06
+
 playersComponent
   :: forall query output m
    . MonadAff m
   => H.Component query Message.Players output m
 playersComponent =
   Hooks.component \_ players -> Hooks.do
+    let
+      sortedPlayers =
+        Array.sortBy (comparing (Down <<< _.rating <<< snd))
+          $ Map.toUnfoldableUnordered players
+      isHighVolatility player = player.volatility >= highVolatilityThreshold
+      lowVolatilityPlayers = Array.filter (not <<< isHighVolatility <<< snd) sortedPlayers
+      highVolatilityPlayers = Array.filter (isHighVolatility <<< snd) sortedPlayers
+      renderPlayer isItalic (Tuple _ player) =
+        HH.div
+          [ HP.class_ $ wrap rosterItemRowClass ]
+          [ HH.div
+              [ HP.class_ $ wrap rosterNameClass ]
+              [ HH.text player.nickname ]
+          , HH.div
+              [ HP.class_ $ wrap rosterMetaClass ]
+              [ if isItalic
+                  then HH.i_ [ HH.text $ show $ round player.rating ]
+                  else HH.text $ show $ round player.rating
+              ]
+          ]
     Hooks.pure $ HH.div_
-      $
-        [ HH.div
-            [ HP.class_ $ wrap rosterHeaderClass
-            ]
-            [ HH.text "Players" ]
-        ] <>
-          ( map
-              ( \(Tuple _ player) -> HH.div
-                  [ HP.class_ $ wrap rosterItemRowClass ]
-                  [ HH.div
-                      [ HP.class_ $ wrap rosterNameClass ]
-                      [ HH.text player.nickname ]
-                  , HH.div
-                      [ HP.class_ $ wrap rosterMetaClass ]
-                      [ HH.text $ show $ round player.rating ]
-                  ]
-              )
-              $ Map.toUnfoldableUnordered players
-          )
+      $ [ HH.div [ HP.class_ $ wrap rosterHeaderClass ] [ HH.text "Players" ] ]
+        <> map (renderPlayer false) lowVolatilityPlayers
+        <> map (renderPlayer true) highVolatilityPlayers
 
 formatConfig :: Message.GameConfig -> HH.PlainHTML
 formatConfig config =
