@@ -24,9 +24,9 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
+import Data.Nullable (Nullable)
+import Data.Nullable as Nullable
 import Data.Number as Number
-import Data.String (Pattern(..))
-import Data.String as String
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -43,7 +43,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Field as Field
 import FieldComponent (fieldComponent, Output(..), Redraw(..))
-import Foreign (Foreign, readString, unsafeToForeign, unsafeFromForeign, isNull, isUndefined)
+import Foreign (readString, unsafeToForeign, unsafeFromForeign, isNull, isUndefined)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -67,7 +67,6 @@ import Web.DOM.DOMTokenList as DOMTokenList
 import Web.DOM.Element as Element
 import Web.DOM.MutationObserver as MutationObserver
 import Web.DOM.NonElementParentNode (getElementById)
-import Web.Event.Event (Event)
 import Web.Event.Event as Event
 import Web.Event.EventTarget as EET
 import Web.HTML as HTML
@@ -87,19 +86,14 @@ testBuild :: Boolean
 testBuild = false
 
 foreign import setCookie :: String -> Effect Unit
-foreign import getCookie :: Effect String
-foreign import eventData :: Event -> Foreign
+foreign import setLocalStorage :: String -> String -> Effect Unit
+foreign import getLocalStorage :: String -> Effect (Nullable String)
+foreign import removeLocalStorage :: String -> Effect Unit
 
 getAuthCookie :: Effect (Maybe String)
 getAuthCookie = do
-  cookies <- getCookie
-  pure $ Array.findMap parseCookiePair $ String.split (Pattern "; ") cookies
-  where
-  parseCookiePair pair = case String.indexOf (Pattern "=") pair of
-    Maybe.Nothing -> Maybe.Nothing
-    Maybe.Just i ->
-      if String.take i pair == "kropki_auth" then Maybe.Just $ String.drop (i + 1) pair
-      else Maybe.Nothing
+  val <- getLocalStorage "kropki_auth"
+  pure $ Nullable.toMaybe val
 
 foreign import saveFile :: String -> String -> Effect Unit
 
@@ -1059,14 +1053,14 @@ appComponent =
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
           Message.AuthUrlResponse url authCookie -> liftEffect $ do
-            setCookie $ "kropki_auth=" <> authCookie <> "; Path=/"
+            setLocalStorage "kropki_auth" authCookie
             window <- HTML.window
             location <- Window.location window
             Location.assign url location
           Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
             liftEffect $ setCookie cookie
-            liftEffect $ setCookie "kropki_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
+            liftEffect $ removeLocalStorage "kropki_auth"
           Message.PlayerJoinedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.PlayerLeftResponse playerId ->
