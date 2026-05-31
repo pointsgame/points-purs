@@ -838,28 +838,33 @@ renderGameHeader
   -> String
   -> { red :: Milliseconds, black :: Milliseconds }
   -> Boolean
+  -> Maybe.Maybe Player.Player
   -> NonEmptyList.NonEmptyList Field.Field
   -> Array (HH.HTML w i)
-renderGameHeader redName blackName timeLeft finished fields =
+renderGameHeader redName blackName timeLeft finished winner fields =
   let
     currentField = NonEmptyList.head fields
     nextPlayer = Field.nextPlayer currentField
     redTicking = nextPlayer == Player.Red
     scoreRed = Field.scoreRed currentField
     scoreBlack = Field.scoreBlack currentField
+    nameEl player name = case winner of
+      Maybe.Just w | w == player -> HH.strong_ [ HH.text name ]
+      Maybe.Nothing | not finished -> HH.span_ [ HH.text name ]
+      _ -> HH.em_ [ HH.text name ]
   in
     [ HH.fromPlainHTML $ countdown (not finished && redTicking) timeLeft.red
     , HH.fromPlainHTML $ svgDot "red"
     , HH.div
         [ HP.class_ $ wrap scoreBadgeClass ]
         [ -- Red Player Name
-          HH.span_ [ HH.text redName ]
+          nameEl Player.Red redName
         -- The Score Badge
         , HH.div
             [ HP.class_ $ wrap scoreValueClass ]
             [ HH.text $ show scoreRed <> " : " <> show scoreBlack ]
         -- Black Player Name
-        , HH.span_ [ HH.text blackName ]
+        , nameEl Player.Black blackName
         ]
     , HH.fromPlainHTML $ svgDot "black"
     , HH.fromPlainHTML $ countdown (not finished && not redTicking) timeLeft.black
@@ -1134,18 +1139,25 @@ appComponent =
             , HH.div
                 [ HP.class_ $ wrap gameHeaderCenterClass ] $ case state of
                 AppStateGame game ->
-                  renderGameHeader
-                    game.redPlayer.nickname
-                    game.blackPlayer.nickname
-                    game.timeLeft
-                    (Maybe.isJust game.result)
-                    game.fields
+                  let
+                    gameWinner = game.result >>= case _ of
+                      Message.WinGameResult (Message.Color p) _ -> Maybe.Just p
+                      _ -> Maybe.Nothing
+                  in
+                    renderGameHeader
+                      game.redPlayer.nickname
+                      game.blackPlayer.nickname
+                      game.timeLeft
+                      (Maybe.isJust game.result)
+                      gameWinner
+                      game.fields
                 AppStateLocalGame game ->
                   renderGameHeader
                     "Player 1"
                     "Player 2"
                     game.timeLeft
                     false
+                    Maybe.Nothing
                     game.fields
                 _ -> []
             , HH.div
