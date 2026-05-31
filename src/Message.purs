@@ -71,7 +71,7 @@ type Coordinate = { x :: Int, y :: Int }
 
 type Move = { coordinate :: Coordinate, player :: Color }
 
-type Player = { nickname :: String }
+type Player = { nickname :: String, rating :: Number, deviation :: Number }
 
 type OpenGame = { playerId :: PlayerId, player :: Player, config :: GameConfig }
 

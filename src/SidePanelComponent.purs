@@ -3,6 +3,7 @@ module SidePanelComponent where
 import Prelude
 
 import Data.Array as Array
+import Data.Int (round)
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
@@ -165,7 +166,7 @@ playersComponent =
                       [ HH.text player.nickname ]
                   , HH.div
                       [ HP.class_ $ wrap rosterMetaClass ]
-                      [ HH.text "1500" ]
+                      [ HH.text $ show $ round player.rating ]
                   ]
               )
               $ Map.toUnfoldableUnordered players
