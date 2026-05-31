@@ -817,6 +817,7 @@ data AppState
       , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
       , fields :: NonEmptyList.NonEmptyList Field.Field
       , result :: Maybe Message.GameResult
+      , drawOffer :: Maybe Message.Color
       }
   | AppStateDrawSettings
   | AppStateProfile { availability :: Availability }
@@ -877,6 +878,8 @@ appComponent =
     watchingGameId /\ watchingGameIdId <- Hooks.useState input.watchingGameId
     drawSettings /\ drawSettingsId <- UsePersistentState.usePersistentState drawSettingsKey defaultDrawSettings
     state /\ stateId <- Hooks.useState AppStateEmpty
+    resignPending /\ resignPendingId <- Hooks.useState false
+    _ /\ resignTimerSubRef <- Hooks.useRef (Maybe.Nothing :: Maybe H.SubscriptionId)
 
     Hooks.useLifecycleEffect do
       let
@@ -966,6 +969,31 @@ appComponent =
       pure $ Maybe.Just $ Hooks.unsubscribe keySubscriptionId *> Hooks.unsubscribe saveSubscriptionId
 
     let
+      cancelResignTimer = do
+        maybeSub <- liftEffect $ Ref.read resignTimerSubRef
+        for_ maybeSub \subId -> do
+          Hooks.unsubscribe subId
+          liftEffect $ Ref.write Maybe.Nothing resignTimerSubRef
+
+      handleResignClick gameId = do
+        pending <- Hooks.get resignPendingId
+        if pending then do
+          cancelResignTimer
+          Hooks.put resignPendingId false
+          Hooks.raise outputToken $ Message.ResignRequest gameId
+        else do
+          Hooks.put resignPendingId true
+          let
+            emitter = HS.makeEmitter \push -> do
+              fiber <- Aff.launchAff do
+                Aff.delay $ Milliseconds 3000.0
+                liftEffect $ push $ do
+                  Hooks.put resignPendingId false
+                  liftEffect $ Ref.write Maybe.Nothing resignTimerSubRef
+              pure $ Aff.launchAff_ $ Aff.killFiber (Exception.error "canceled") fiber
+          subId <- Hooks.subscribe emitter
+          liftEffect $ Ref.write (Maybe.Just subId) resignTimerSubRef
+
       unsubscribe = Maybe.maybe (pure unit) (\oldGameId -> Hooks.raise outputToken $ Message.UnsubscribeRequest oldGameId) watchingGameId
       switchToGame gameId = do
         unsubscribe
@@ -1013,6 +1041,7 @@ appComponent =
                     (NonEmptyList.singleton $ Field.emptyField game.config.size.width game.config.size.height)
                     moves
                 , result
+                , drawOffer
                 }
               liftEffect $ putHistoryState $ AppHistoryStateGame gameId
             else
@@ -1042,14 +1071,17 @@ appComponent =
                 Hooks.put stateId $ AppStateGame game
                   { puttingTime = puttingTime
                   , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
+                  , drawOffer = Maybe.Nothing
                   , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
                       $ Field.putPoint (Tuple move.coordinate.x move.coordinate.y) (unwrap move.player)
                       $ NonEmptyList.head game.fields
                   }
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
-          Message.DrawResponse _ _ ->
-            pure unit
+          Message.DrawResponse gameId color ->
+            Hooks.modify_ stateId $ case _ of
+              AppStateGame game | game.gameId == gameId -> AppStateGame game { drawOffer = Maybe.Just color }
+              other -> other
           Message.GameResultResponse gameId timeLeft result -> do
             Hooks.modify_ gamesId $ Map.delete gameId
             Hooks.modify_ stateId $ case _ of
@@ -1058,6 +1090,8 @@ appComponent =
                 , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
                 }
               other -> other
+            cancelResignTimer
+            Hooks.put resignPendingId false
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.NicknameAvailableResponse nickname available ->
@@ -1110,42 +1144,80 @@ appComponent =
                     game.fields
                 _ -> []
             , HH.div
-                [ HP.class_ $ wrap menuWrapperClass
-                ]
-                [ HH.slot
-                    _menu
-                    unit
-                    menuComponent
-                    (activePlayerId >>= (flip Map.lookup players))
-                    case _ of
-                      MenuSignIn rememberMe ->
-                        Hooks.raise outputToken $ Message.GetAuthUrlRequest rememberMe
-                      MenuSignInTest name ->
-                        Hooks.raise outputToken $ Message.AuthTestRequest name
-                      MenuSignOut -> do
-                        Hooks.raise outputToken Message.SignOutRequest
-                        Hooks.put activePlayerIdId Maybe.Nothing
-                        liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
-                      MenuDrawSettings -> do
-                        unsubscribe
-                        Hooks.put watchingGameIdId Maybe.Nothing
-                        Hooks.put stateId AppStateDrawSettings
-                        liftEffect $ putHistoryState AppHistoryStateDrawSettings
-                      MenuProfile -> do
-                        unsubscribe
-                        Hooks.put watchingGameIdId Maybe.Nothing
-                        Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
-                        liftEffect $ putHistoryState AppHistoryStateProfile
-                      MenuSaveSgf -> do
-                        state' <- Hooks.get stateId
-                        let
-                          maybeFields = case state' of
-                            AppStateGame game -> Maybe.Just game.fields
-                            AppStateLocalGame game -> Maybe.Just game.fields
-                            _ -> Maybe.Nothing
-                        for_ maybeFields \fields ->
-                          liftEffect $ saveFile "game.sgf" $ Sgf.fieldsToSgf fields
-                ]
+                [ HP.class_ $ wrap topBarRightClass ]
+                $
+                  ( case state of
+                      AppStateGame game | Maybe.isNothing game.result ->
+                        case Map.lookup game.gameId games of
+                          Maybe.Just gameInfo
+                            | activePlayerId == Maybe.Just gameInfo.redPlayerId || activePlayerId == Maybe.Just gameInfo.blackPlayerId ->
+                                let
+                                  myColor =
+                                    if activePlayerId == Maybe.Just gameInfo.redPlayerId then Message.Color Player.Red
+                                    else Message.Color Player.Black
+                                  isMyOffer = game.drawOffer == Maybe.Just myColor
+                                  isOpponentOffer = Maybe.isJust game.drawOffer && game.drawOffer /= Maybe.Just myColor
+                                  resignClass = btnActionClass <> if resignPending then " " <> btnResignPendingClass else ""
+                                  drawClass = btnActionClass <> if isMyOffer then " " <> btnDrawOfferedClass else if isOpponentOffer then " " <> btnDrawOpponentClass else ""
+                                  handleDrawClick = do
+                                    when isMyOffer $ Hooks.modify_ stateId $ case _ of
+                                      AppStateGame g | g.gameId == game.gameId -> AppStateGame g { drawOffer = Maybe.Nothing }
+                                      other -> other
+                                    Hooks.raise outputToken $ Message.DrawRequest game.gameId
+                                in
+                                  [ HH.button
+                                      [ HP.class_ $ wrap resignClass
+                                      , HE.onClick \_ -> handleResignClick game.gameId
+                                      ]
+                                      [ HH.text "Resign" ]
+                                  , HH.button
+                                      [ HP.class_ $ wrap drawClass
+                                      , HE.onClick \_ -> handleDrawClick
+                                      ]
+                                      [ HH.text "Draw" ]
+                                  ]
+                          _ -> []
+                      _ -> []
+                  )
+                    <>
+                      [ HH.div
+                          [ HP.class_ $ wrap menuWrapperClass
+                          ]
+                          [ HH.slot
+                              _menu
+                              unit
+                              menuComponent
+                              (activePlayerId >>= (flip Map.lookup players))
+                              case _ of
+                                MenuSignIn rememberMe ->
+                                  Hooks.raise outputToken $ Message.GetAuthUrlRequest rememberMe
+                                MenuSignInTest name ->
+                                  Hooks.raise outputToken $ Message.AuthTestRequest name
+                                MenuSignOut -> do
+                                  Hooks.raise outputToken Message.SignOutRequest
+                                  Hooks.put activePlayerIdId Maybe.Nothing
+                                  liftEffect $ setCookie "kropki=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
+                                MenuDrawSettings -> do
+                                  unsubscribe
+                                  Hooks.put watchingGameIdId Maybe.Nothing
+                                  Hooks.put stateId AppStateDrawSettings
+                                  liftEffect $ putHistoryState AppHistoryStateDrawSettings
+                                MenuProfile -> do
+                                  unsubscribe
+                                  Hooks.put watchingGameIdId Maybe.Nothing
+                                  Hooks.put stateId $ AppStateProfile { availability: AvailabilityInit }
+                                  liftEffect $ putHistoryState AppHistoryStateProfile
+                                MenuSaveSgf -> do
+                                  state' <- Hooks.get stateId
+                                  let
+                                    maybeFields = case state' of
+                                      AppStateGame game -> Maybe.Just game.fields
+                                      AppStateLocalGame game -> Maybe.Just game.fields
+                                      _ -> Maybe.Nothing
+                                  for_ maybeFields \fields ->
+                                    liftEffect $ saveFile "game.sgf" $ Sgf.fieldsToSgf fields
+                          ]
+                      ]
             ]
         , HH.div
             [ HP.class_ $ wrap mainContentClass ]
@@ -1427,6 +1499,24 @@ rememberMeCheckboxClass = "remember-me-checkbox"
 
 rememberMeLabelClass :: String
 rememberMeLabelClass = "remember-me-label"
+
+gameActionsClass :: String
+gameActionsClass = "game-actions"
+
+topBarRightClass :: String
+topBarRightClass = "top-bar-right"
+
+btnActionClass :: String
+btnActionClass = "btn-action"
+
+btnResignPendingClass :: String
+btnResignPendingClass = "btn-resign-pending"
+
+btnDrawOfferedClass :: String
+btnDrawOfferedClass = "btn-draw-offered"
+
+btnDrawOpponentClass :: String
+btnDrawOpponentClass = "btn-draw-opponent"
 
 main :: Effect Unit
 main = do

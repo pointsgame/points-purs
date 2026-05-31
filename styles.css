@@ -365,9 +365,70 @@ body {
   font-family: monospace;
 }
 
-/* Menu auto-margin wrapper */
-.menu-wrapper {
+/* Right-side container in top bar: holds action buttons + menu */
+.top-bar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Game action buttons (resign / draw) shown in the top bar */
+.game-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.btn-action {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+  background-color: #e9ecef;
+  color: #333;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.btn-action:hover {
+  background-color: #d0d3d6;
+}
+
+/* Resign button — first press: orange warning */
+.btn-action.btn-resign-pending {
+  background-color: #fd7e14;
+  border-color: #e8690a;
+  color: #fff;
+}
+
+.btn-action.btn-resign-pending:hover {
+  background-color: #e8690a;
+}
+
+/* Draw button — I offered a draw: yellow/waiting */
+.btn-action.btn-draw-offered {
+  background-color: #ffc107;
+  border-color: #e0aa00;
+  color: #333;
+}
+
+.btn-action.btn-draw-offered:hover {
+  background-color: #e0aa00;
+}
+
+/* Draw button — opponent offered a draw: green/accept */
+.btn-action.btn-draw-opponent {
+  background-color: #28a745;
+  border-color: #1e7e34;
+  color: #fff;
+}
+
+.btn-action.btn-draw-opponent:hover {
+  background-color: #1e7e34;
 }
 
 /* Main content area */
