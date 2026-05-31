@@ -186,6 +186,7 @@ data Response
   | GameResultResponse GameId TimeLeft GameResult
   | NicknameChangedResponse PlayerId Player
   | NicknameAvailableResponse String Boolean
+  | RatingsUpdatedResponse GameId PlayerId Player PlayerId Player
 
 derive instance Generic Response _
 
@@ -227,4 +228,5 @@ instance DecodeJson Response where
       "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "timeLeft" <*> obj .: "result"
       "NicknameChanged" -> NicknameChangedResponse <$> obj .: "playerId" <*> obj .: "player"
       "NicknameAvailable" -> NicknameAvailableResponse <$> obj .: "nickname" <*> obj .: "available"
+      "RatingsUpdated" -> RatingsUpdatedResponse <$> obj .: "gameId" <*> obj .: "redPlayerId" <*> obj .: "redPlayer" <*> obj .: "blackPlayerId" <*> obj .: "blackPlayer"
       other -> Left $ UnexpectedValue $ encodeJson other

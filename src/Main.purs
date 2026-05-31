@@ -1100,6 +1100,9 @@ appComponent =
                 Hooks.put stateId $ AppStateProfile
                   { availability: (if available then AvailabilityAvailable else AvailabilityTaken) nickname }
               _ -> pure unit
+          Message.RatingsUpdatedResponse _ redPlayerId redPlayer blackPlayerId blackPlayer -> do
+            Hooks.modify_ playersId $ Map.insert redPlayerId redPlayer
+            Hooks.modify_ playersId $ Map.insert blackPlayerId blackPlayer
         pure $ Maybe.Just a
 
     Hooks.pure
