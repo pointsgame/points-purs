@@ -9,6 +9,7 @@ package:
     - lists
     - arrays
     - integers
+    - numbers
     - strings
     - transformers
     - ordered-collections

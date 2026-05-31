@@ -221,6 +221,7 @@
             "integers",
             "lists",
             "now",
+            "numbers",
             "ordered-collections",
             "prelude",
             "refs",

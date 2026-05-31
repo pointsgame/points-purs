@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Array as Array
 import Data.Int (round)
+import Data.Number.Format (fixed, toStringWith)
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
@@ -163,23 +164,25 @@ playersComponent =
       isHighVolatility player = player.volatility >= highVolatilityThreshold
       lowVolatilityPlayers = Array.filter (not <<< isHighVolatility <<< snd) sortedPlayers
       highVolatilityPlayers = Array.filter (isHighVolatility <<< snd) sortedPlayers
+      fmt = toStringWith (fixed 2)
       renderPlayer isItalic (Tuple _ player) =
         HH.div
-          [ HP.class_ $ wrap rosterItemRowClass ]
+          [ HP.class_ $ wrap rosterItemRowClass
+          , HP.title $ "Rating: " <> fmt player.rating <> "\nDeviation: " <> fmt player.deviation <> "\nVolatility: " <> fmt player.volatility
+          ]
           [ HH.div
               [ HP.class_ $ wrap rosterNameClass ]
               [ HH.text player.nickname ]
           , HH.div
               [ HP.class_ $ wrap rosterMetaClass ]
-              [ if isItalic
-                  then HH.i_ [ HH.text $ show $ round player.rating ]
-                  else HH.text $ show $ round player.rating
+              [ if isItalic then HH.i_ [ HH.text $ show $ round player.rating ]
+                else HH.text $ show $ round player.rating
               ]
           ]
     Hooks.pure $ HH.div_
       $ [ HH.div [ HP.class_ $ wrap rosterHeaderClass ] [ HH.text "Players" ] ]
-        <> map (renderPlayer false) lowVolatilityPlayers
-        <> map (renderPlayer true) highVolatilityPlayers
+          <> map (renderPlayer false) lowVolatilityPlayers
+          <> map (renderPlayer true) highVolatilityPlayers
 
 formatConfig :: Message.GameConfig -> HH.PlainHTML
 formatConfig config =
