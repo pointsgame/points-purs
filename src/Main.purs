@@ -89,12 +89,6 @@ foreign import setCookie :: String -> Effect Unit
 foreign import setLocalStorage :: String -> String -> Effect Unit
 foreign import getLocalStorage :: String -> Effect (Nullable String)
 foreign import removeLocalStorage :: String -> Effect Unit
-
-getAuthCookie :: Effect (Maybe String)
-getAuthCookie = do
-  val <- getLocalStorage "kropki_auth"
-  pure $ Nullable.toMaybe val
-
 foreign import saveFile :: String -> String -> Effect Unit
 
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
@@ -1352,6 +1346,11 @@ appComponent =
                 ]
             ]
         ]
+
+getAuthCookie :: Effect (Maybe String)
+getAuthCookie = do
+  val <- getLocalStorage "kropki_auth"
+  pure $ Nullable.toMaybe val
 
 menuListId :: String
 menuListId = "menu-list"
