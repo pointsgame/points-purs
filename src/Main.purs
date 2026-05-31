@@ -1078,9 +1078,9 @@ appComponent =
                   }
               _ ->
                 liftEffect $ Console.warn $ "Wrong game to put point"
-          Message.DrawResponse gameId color ->
+          Message.DrawResponse gameId color offer ->
             Hooks.modify_ stateId $ case _ of
-              AppStateGame game | game.gameId == gameId -> AppStateGame game { drawOffer = Maybe.Just color }
+              AppStateGame game | game.gameId == gameId -> AppStateGame game { drawOffer = if offer then Maybe.Just color else Maybe.Nothing }
               other -> other
           Message.GameResultResponse gameId timeLeft result -> do
             Hooks.modify_ gamesId $ Map.delete gameId

@@ -182,7 +182,7 @@ data Response
   | CloseResponse GameId
   | StartResponse GameId Game
   | PutPointResponse GameId Move Instant TimeLeft
-  | DrawResponse GameId Color
+  | DrawResponse GameId Color Boolean
   | GameResultResponse GameId TimeLeft GameResult
   | NicknameChangedResponse PlayerId Player
   | NicknameAvailableResponse String Boolean
@@ -223,7 +223,7 @@ instance DecodeJson Response where
       "Close" -> CloseResponse <$> obj .: "gameId"
       "Start" -> StartResponse <$> obj .: "gameId" <*> obj .: "game"
       "PutPoint" -> PutPointResponse <$> obj .: "gameId" <*> obj .: "move" <*> (map un $ obj .: "puttingTime") <*> obj .: "timeLeft"
-      "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player"
+      "Draw" -> DrawResponse <$> obj .: "gameId" <*> obj .: "player" <*> obj .: "offer"
       "GameResult" -> GameResultResponse <$> obj .: "gameId" <*> obj .: "timeLeft" <*> obj .: "result"
       "NicknameChanged" -> NicknameChangedResponse <$> obj .: "playerId" <*> obj .: "player"
       "NicknameAvailable" -> NicknameAvailableResponse <$> obj .: "nickname" <*> obj .: "available"
