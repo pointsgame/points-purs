@@ -861,12 +861,13 @@ renderGameHeader
   :: forall w i
    . String
   -> String
+  -> String
   -> { red :: Milliseconds, black :: Milliseconds }
   -> Boolean
   -> Maybe.Maybe Player.Player
   -> NonEmptyList.NonEmptyList Field.Field
   -> Array (HH.HTML w i)
-renderGameHeader redName blackName timeLeft finished winner fields =
+renderGameHeader gameId redName blackName timeLeft finished winner fields =
   let
     currentField = NonEmptyList.head fields
     nextPlayer = Field.nextPlayer currentField
@@ -878,7 +879,7 @@ renderGameHeader redName blackName timeLeft finished winner fields =
       Maybe.Nothing | not finished -> HH.span_ [ HH.text name ]
       _ -> HH.em_ [ HH.text name ]
   in
-    [ HH.fromPlainHTML $ countdown (not finished && redTicking) timeLeft.red
+    [ HH.fromPlainHTML $ countdown (gameId <> "-red") (not finished && redTicking) timeLeft.red
     , HH.fromPlainHTML $ svgDot "red"
     , HH.div
         [ HP.class_ $ wrap scoreBadgeClass ]
@@ -892,7 +893,7 @@ renderGameHeader redName blackName timeLeft finished winner fields =
         , nameEl Player.Black blackName
         ]
     , HH.fromPlainHTML $ svgDot "black"
-    , HH.fromPlainHTML $ countdown (not finished && not redTicking) timeLeft.black
+    , HH.fromPlainHTML $ countdown (gameId <> "-black") (not finished && not redTicking) timeLeft.black
     ]
 
 appComponent
@@ -1170,6 +1171,7 @@ appComponent =
                       _ -> Maybe.Nothing
                   in
                     renderGameHeader
+                      game.gameId
                       game.redPlayer.nickname
                       game.blackPlayer.nickname
                       game.timeLeft
@@ -1178,6 +1180,7 @@ appComponent =
                       game.fields
                 AppStateLocalGame game ->
                   renderGameHeader
+                    "local"
                     "Player 1"
                     "Player 2"
                     game.timeLeft
