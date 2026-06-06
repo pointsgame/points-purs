@@ -147,6 +147,11 @@ openGamesComponent =
               $ Map.toUnfoldableUnordered openGames
           )
 
+openingSymbol :: Message.Opening -> String
+openingSymbol Message.Cross = "x"
+openingSymbol Message.TwoCrosses = "xx"
+openingSymbol Message.TripleCross = "𝈛"
+
 highVolatilityThreshold :: Number
 highVolatilityThreshold = 0.06
 
@@ -194,7 +199,7 @@ formatConfig config =
     timeStr = show minutes <> ":" <> secPad <> show seconds <> "+" <> show config.time.increment
   in
     HH.span_
-      [ HH.text $ widthStr <> "x" <> heightStr
+      [ HH.text $ widthStr <> "x" <> heightStr <> "|" <> openingSymbol config.opening
       , HH.br_
       , HH.text timeStr
       ]
