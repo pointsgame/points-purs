@@ -65,7 +65,28 @@ type GameTime = { total :: Int, increment :: Int }
 
 type TimeLeft = { red :: Int, black :: Int }
 
-type GameConfig = { size :: FieldSize, time :: GameTime }
+data Opening = Cross | TwoCrosses | TripleCross
+
+derive instance Generic Opening _
+
+derive instance Eq Opening
+
+instance Show Opening where
+  show = genericShow
+
+instance EncodeJson Opening where
+  encodeJson Cross = encodeJson "Cross"
+  encodeJson TwoCrosses = encodeJson "TwoCrosses"
+  encodeJson TripleCross = encodeJson "TripleCross"
+
+instance DecodeJson Opening where
+  decodeJson json = decodeJson json >>= case _ of
+    "Cross" -> Right Cross
+    "TwoCrosses" -> Right TwoCrosses
+    "TripleCross" -> Right TripleCross
+    other -> Left $ UnexpectedValue $ encodeJson other
+
+type GameConfig = { size :: FieldSize, time :: GameTime, opening :: Opening }
 
 type Coordinate = { x :: Int, y :: Int }
 

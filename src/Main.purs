@@ -426,6 +426,7 @@ createGameComponent
   => H.Component query (Maybe Message.PlayerId /\ Message.OpenGames) CreateGameOutput m
 createGameComponent =
   Hooks.component \{ outputToken } (activePlayerId /\ openGames) -> Hooks.do
+    opening /\ openingId <- Hooks.useState Message.Cross
     let
       -- Check if current user has an open game
       existingGame = case activePlayerId of
@@ -443,6 +444,7 @@ createGameComponent =
             , minutes: show (totalSeconds / 60)
             , seconds: show (totalSeconds `mod` 60)
             , increment: show openGame.config.time.increment
+            , opening: openGame.config.opening
             , disabled: true
             }
         Maybe.Nothing ->
@@ -451,6 +453,7 @@ createGameComponent =
           , minutes: "5"
           , seconds: "0"
           , increment: "5"
+          , opening: opening
           , disabled: false
           }
 
@@ -494,6 +497,26 @@ createGameComponent =
                   , HH.table_
                       [ renderRow "width" "Width" displayState.width 10.0 50.0 displayState.disabled
                       , renderRow "height" "Height" displayState.height 10.0 50.0 displayState.disabled
+                      , HH.tr_
+                          [ HH.td
+                              [ HP.class_ $ wrap tdLabelClass ]
+                              [ HH.text "Opening" ]
+                          , HH.td
+                              [ HP.class_ $ wrap tdValueClass ]
+                              [ HH.select
+                                  [ HP.disabled displayState.disabled
+                                  , HE.onValueChange \val -> case val of
+                                      "Cross" -> Hooks.put openingId Message.Cross
+                                      "TwoCrosses" -> Hooks.put openingId Message.TwoCrosses
+                                      "TripleCross" -> Hooks.put openingId Message.TripleCross
+                                      _ -> pure unit
+                                  ]
+                                  [ HH.option [ HP.value "Cross", HP.selected (displayState.opening == Message.Cross) ] [ HH.text "Cross" ]
+                                  , HH.option [ HP.value "TwoCrosses", HP.selected (displayState.opening == Message.TwoCrosses) ] [ HH.text "Two Crosses" ]
+                                  , HH.option [ HP.value "TripleCross", HP.selected (displayState.opening == Message.TripleCross) ] [ HH.text "Triple Cross" ]
+                                  ]
+                              ]
+                          ]
                       ]
                   ]
               , -- Column 2: Time Control
@@ -534,6 +557,7 @@ createGameComponent =
                             lift $ when (totalTime >= 30) $ Hooks.raise outputToken $ CreateGame
                               { size: { width, height }
                               , time: { total: totalTime, increment }
+                              , opening
                               }
                       ]
                       [ HH.text "Create game" ]
@@ -558,6 +582,7 @@ createGameComponent =
                             lift $ Hooks.raise outputToken $ CreateLocalGame
                               { size: { width, height }
                               , time: { total: totalTime, increment }
+                              , opening
                               }
                       ]
                       [ HH.text "Local game" ]
