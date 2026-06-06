@@ -169,10 +169,11 @@ playersComponent =
       lowVolatilityPlayers = Array.filter (not <<< isHighVolatility <<< snd) sortedPlayers
       highVolatilityPlayers = Array.filter (isHighVolatility <<< snd) sortedPlayers
       fmt = toStringWith (fixed 2)
+      fmtVol = toStringWith (fixed 5)
       renderPlayer isItalic (Tuple _ player) =
         HH.div
           [ HP.class_ $ wrap rosterItemRowClass
-          , HP.title $ "Rating: " <> fmt player.rating <> "\nDeviation: " <> fmt player.deviation <> "\nVolatility: " <> fmt player.volatility
+          , HP.title $ "Rating: " <> fmt player.rating <> "\nDeviation: " <> fmt player.deviation <> "\nVolatility: " <> fmtVol player.volatility
           ]
           [ HH.div
               [ HP.class_ $ wrap rosterNameClass ]
