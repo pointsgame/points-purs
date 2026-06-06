@@ -1117,14 +1117,17 @@ appComponent =
               other -> other
           Message.GameResultResponse gameId timeLeft result -> do
             Hooks.modify_ gamesId $ Map.delete gameId
+            case state of
+              AppStateGame game | game.gameId == gameId -> do
+                cancelResignTimer
+                Hooks.put resignPendingId false
+              _ -> pure unit
             Hooks.modify_ stateId $ case _ of
               AppStateGame game | game.gameId == gameId -> AppStateGame game
                 { result = Maybe.Just result
                 , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
                 }
               other -> other
-            cancelResignTimer
-            Hooks.put resignPendingId false
           Message.NicknameChangedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.NicknameAvailableResponse nickname available ->
