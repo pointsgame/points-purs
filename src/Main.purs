@@ -828,6 +828,14 @@ putHistoryState state = do
     newUrl = currentPath <> if newStr == "" then "" else "?" <> newStr
   History.pushState (unsafeToForeign state) (History.DocumentTitle "kropki") (History.URL newUrl) history
 
+type LocalGame =
+  { config :: Message.GameConfig
+  , puttingTime :: Instant.Instant
+  , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
+  , fields :: NonEmptyList.NonEmptyList Field.Field
+  , redoFields :: List.List Field.Field
+  }
+
 data AppState
   = AppStateEmpty
   | AppStateGame
@@ -843,16 +851,82 @@ data AppState
       }
   | AppStateDrawSettings
   | AppStateProfile { availability :: Availability }
-  | AppStateLocalGame
-      { config :: Message.GameConfig
-      , puttingTime :: Instant.Instant
-      , timeLeft :: { red :: Milliseconds, black :: Milliseconds }
-      , fields :: NonEmptyList.NonEmptyList Field.Field
-      , redoFields :: List.List Field.Field
-      }
+  | AppStateLocalGame LocalGame
 
 drawSettingsKey :: String
 drawSettingsKey = "draw-settings"
+
+localGameKey :: String
+localGameKey = "local-game"
+
+encodePlayer :: Player.Player -> String
+encodePlayer Player.Red = "Red"
+encodePlayer Player.Black = "Black"
+
+decodePlayer :: String -> Maybe Player.Player
+decodePlayer "Red" = Maybe.Just Player.Red
+decodePlayer "Black" = Maybe.Just Player.Black
+decodePlayer _ = Maybe.Nothing
+
+-- | A single placed point in a form that can be persisted.
+type PersistentMove = { x :: Int, y :: Int, player :: String }
+
+-- | A local game in a form that can be persisted. The whole undo/redo history
+-- | is captured by the deepest field's move sequence (replayed against the
+-- | field size from `config`) together with the number of moves currently
+-- | undone.
+type PersistentLocalGame =
+  { config :: Message.GameConfig
+  , timeLeft :: { red :: Number, black :: Number }
+  , moves :: Array PersistentMove
+  , redo :: Int
+  }
+
+toPersistentLocalGame :: LocalGame -> PersistentLocalGame
+toPersistentLocalGame game =
+  { config: game.config
+  , timeLeft: { red: unwrap game.timeLeft.red, black: unwrap game.timeLeft.black }
+  , moves:
+      map (\(Tuple (Tuple x y) player) -> { x, y, player: encodePlayer player })
+        $ Array.reverse
+        $ Array.fromFoldable
+        $ Field.moves
+        $ Maybe.fromMaybe (NonEmptyList.head game.fields)
+        $ List.last game.redoFields
+  , redo: List.length game.redoFields
+  }
+
+restoreLocalGame :: Instant.Instant -> PersistentLocalGame -> Maybe LocalGame
+restoreLocalGame now persistent = do
+  moves <- traverse (\move -> Tuple (Tuple move.x move.y) <$> decodePlayer move.player) persistent.moves
+  let
+    allFields = Array.foldl
+      ( \fields (Tuple pos player) ->
+          Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint pos player $ NonEmptyList.head fields
+      )
+      (NonEmptyList.singleton $ Field.emptyField persistent.config.size.width persistent.config.size.height)
+      moves
+    redo = clamp 0 (NonEmptyList.length allFields - 1) persistent.redo
+  fields <- NonEmptyList.fromList $ NonEmptyList.drop redo allFields
+  pure
+    { config: persistent.config
+    , puttingTime: now
+    , timeLeft: { red: wrap persistent.timeLeft.red, black: wrap persistent.timeLeft.black }
+    , fields
+    , redoFields: List.reverse $ NonEmptyList.take redo allFields
+    }
+
+-- | Updates the local game state and persists it so it can be restored later.
+putLocalGame
+  :: forall m
+   . MonadEffect m
+  => Hooks.StateId AppState
+  -> Hooks.StateId (Maybe PersistentLocalGame)
+  -> LocalGame
+  -> Hooks.HookM m Unit
+putLocalGame stateId localGameId game = do
+  Hooks.put stateId $ AppStateLocalGame game
+  UsePersistentState.put localGameKey localGameId $ Maybe.Just $ toPersistentLocalGame game
 
 renderGameHeader
   :: forall w i
@@ -905,6 +979,7 @@ appComponent =
     players /\ playersId <- Hooks.useState input.players
     watchingGameId /\ watchingGameIdId <- Hooks.useState input.watchingGameId
     drawSettings /\ drawSettingsId <- UsePersistentState.usePersistentState drawSettingsKey defaultDrawSettings
+    _ /\ localGameId <- UsePersistentState.usePersistentState localGameKey (Maybe.Nothing :: Maybe PersistentLocalGame)
     state /\ stateId <- Hooks.useState AppStateEmpty
     resignPending /\ resignPendingId <- Hooks.useState false
     _ /\ resignTimerSubRef <- Hooks.useRef (Maybe.Nothing :: Maybe H.SubscriptionId)
@@ -939,7 +1014,7 @@ appComponent =
                           let
                             increment = Int.toNumber game.config.time.increment * 1000.0
                             movedPlayer = Field.nextPlayer prevField
-                          Hooks.put stateId $ AppStateLocalGame game
+                          putLocalGame stateId localGameId $ game
                             { puttingTime = now'
                             , fields = NonEmptyList.cons' prevField rest
                             , redoFields = Cons currentField game.redoFields
@@ -962,7 +1037,7 @@ appComponent =
                             diff = unwrap elapsed
                             increment = Int.toNumber game.config.time.increment * 1000.0
                             movedPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
-                          Hooks.put stateId $ AppStateLocalGame game
+                          putLocalGame stateId localGameId $ game
                             { puttingTime = now'
                             , fields = NonEmptyList.cons redoField game.fields
                             , redoFields = rest
@@ -1035,7 +1110,11 @@ appComponent =
           AppHistoryStateGame gameId -> switchToGame gameId
           AppHistoryStateDrawSettings -> unsubscribe *> Hooks.put stateId AppStateDrawSettings
           AppHistoryStateProfile -> unsubscribe *> Hooks.put stateId (AppStateProfile { availability: AvailabilityInit })
-          AppHistoryStateLocalGame -> unsubscribe *> Hooks.put stateId AppStateEmpty -- TODO: Restore local game
+          AppHistoryStateLocalGame -> do
+            unsubscribe
+            persistent <- Hooks.get localGameId
+            now <- liftEffect Now.now
+            Hooks.put stateId $ Maybe.maybe AppStateEmpty AppStateLocalGame $ persistent >>= restoreLocalGame now
         pure $ Maybe.Just a
       AppQueryMessage response a -> do
         case response of
@@ -1328,7 +1407,7 @@ appComponent =
                               elapsed = Instant.diff now' game.puttingTime
                               diff = unwrap elapsed
                               increment = Int.toNumber game.config.time.increment * 1000.0
-                            Hooks.put stateId $ AppStateLocalGame game
+                            putLocalGame stateId localGameId $ game
                               { puttingTime = now'
                               , timeLeft = case nextPlayer of
                                   Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
@@ -1379,7 +1458,7 @@ appComponent =
                           CreateGame config -> Hooks.raise outputToken $ Message.CreateRequest config
                           CreateLocalGame config -> do
                             now <- liftEffect $ Now.now
-                            Hooks.put stateId $ AppStateLocalGame
+                            putLocalGame stateId localGameId
                               { config
                               , puttingTime: now
                               , timeLeft: { red: Milliseconds $ Int.toNumber $ config.time.total * 1000, black: Milliseconds $ Int.toNumber $ config.time.total * 1000 }
