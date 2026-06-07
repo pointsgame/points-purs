@@ -1,3 +1,8 @@
+const moveSoundAudio = new Audio('move.mp3');
+export const playMoveSound = () => {
+  moveSoundAudio.currentTime = 0;
+  moveSoundAudio.play().catch(() => {});
+};
 export const setCookie = cookie => () => window.document.cookie = cookie;
 export const setLocalStorage = key => value => () => window.localStorage.setItem(key, value);
 export const getLocalStorage = key => () => window.localStorage.getItem(key);

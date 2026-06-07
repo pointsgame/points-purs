@@ -90,6 +90,7 @@ foreign import setLocalStorage :: String -> String -> Effect Unit
 foreign import getLocalStorage :: String -> Effect (Nullable String)
 foreign import removeLocalStorage :: String -> Effect Unit
 foreign import saveFile :: String -> String -> Effect Unit
+foreign import playMoveSound :: Effect Unit
 
 wsProducer :: Ref WS.WebSocket -> Effect WS.WebSocket -> CR.Producer Message.Response Aff Unit
 wsProducer socketRef socketEffect = CRA.produce \emitter ->
@@ -1100,7 +1101,8 @@ appComponent =
             when (activePlayerId == Maybe.Just game.redPlayerId || activePlayerId == Maybe.Just game.blackPlayerId) $ switchToGame gameId
           Message.PutPointResponse gameId move puttingTime timeLeft ->
             case state of
-              AppStateGame game | game.gameId == gameId ->
+              AppStateGame game | game.gameId == gameId -> do
+                liftEffect playMoveSound
                 Hooks.put stateId $ AppStateGame game
                   { puttingTime = puttingTime
                   , timeLeft = { red: Milliseconds $ Int.toNumber timeLeft.red, black: Milliseconds $ Int.toNumber timeLeft.black }
@@ -1321,6 +1323,7 @@ appComponent =
                           { fields: game.fields, pointer: true, drawSettings }
                           \(Click (Tuple x y)) -> do
                             now' <- liftEffect $ Now.now
+                            liftEffect playMoveSound
                             let
                               elapsed :: Milliseconds
                               elapsed = Instant.diff now' game.puttingTime
