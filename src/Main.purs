@@ -24,8 +24,6 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Maybe as Maybe
 import Data.Newtype (unwrap, wrap)
-import Data.Nullable (Nullable)
-import Data.Nullable as Nullable
 import Data.Number as Number
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
@@ -79,6 +77,7 @@ import Web.HTML.Window as Window
 import Web.Socket.Event.EventTypes as WSET
 import Web.Socket.Event.MessageEvent as ME
 import Web.Socket.WebSocket as WS
+import Web.Storage.Storage (getItem, removeItem, setItem)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.URL.URLSearchParams as URLSearchParams
 
@@ -86,9 +85,6 @@ testBuild :: Boolean
 testBuild = false
 
 foreign import setCookie :: String -> Effect Unit
-foreign import setLocalStorage :: String -> String -> Effect Unit
-foreign import getLocalStorage :: String -> Effect (Nullable String)
-foreign import removeLocalStorage :: String -> Effect Unit
 foreign import saveFile :: String -> String -> Effect Unit
 foreign import playMoveSound :: Effect Unit
 
@@ -1079,14 +1075,17 @@ appComponent =
             else
               liftEffect $ Console.warn $ "Unexpected init game id " <> gameId
           Message.AuthUrlResponse url authCookie -> liftEffect $ do
-            setLocalStorage "kropki_auth" authCookie
             window <- HTML.window
+            storage <- Window.localStorage window
+            setItem "kropki_auth" authCookie storage
             location <- Window.location window
             Location.assign url location
           Message.AuthResponse playerId cookie -> do
             Hooks.put activePlayerIdId $ Maybe.Just playerId
             liftEffect $ setCookie cookie
-            liftEffect $ removeLocalStorage "kropki_auth"
+            window <- liftEffect $ HTML.window
+            storage <- liftEffect $ Window.localStorage window
+            liftEffect $ removeItem "kropki_auth" storage
           Message.PlayerJoinedResponse playerId player ->
             Hooks.modify_ playersId $ Map.insert playerId player
           Message.PlayerLeftResponse playerId ->
@@ -1395,8 +1394,9 @@ appComponent =
 
 getAuthCookie :: Effect (Maybe String)
 getAuthCookie = do
-  val <- getLocalStorage "kropki_auth"
-  pure $ Nullable.toMaybe val
+  window <- HTML.window
+  storage <- Window.localStorage window
+  getItem "kropki_auth" storage
 
 menuListId :: String
 menuListId = "menu-list"
