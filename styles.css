@@ -373,6 +373,24 @@ body {
   gap: 6px;
 }
 
+/* AI toggle shown in the top bar during a local game */
+.ai-toggle-row {
+  display: flex;
+  align-items: center;
+}
+
+.ai-toggle-checkbox {
+  margin: 0px 3px 0px 0px;
+  cursor: pointer;
+}
+
+.ai-toggle-label {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  color: #333;
+  cursor: pointer;
+}
+
 /* Game action buttons (resign / draw) shown in the top bar */
 .game-actions {
   display: flex;

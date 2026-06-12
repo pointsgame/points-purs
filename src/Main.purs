@@ -2,6 +2,7 @@ module Main where
 
 import Prelude
 
+import AIWorker as AIWorker
 import CSS as CSS
 import Control.Coroutine as CR
 import Control.Coroutine.Aff (emit)
@@ -83,6 +84,10 @@ import Web.URL.URLSearchParams as URLSearchParams
 
 testBuild :: Boolean
 testBuild = false
+
+-- | Time in milliseconds the AI is allowed to think about a move.
+aiThinkingTime :: Int
+aiThinkingTime = 3000
 
 foreign import setCookie :: String -> Effect Unit
 foreign import saveFile :: String -> String -> Effect Unit
@@ -983,6 +988,97 @@ appComponent =
     state /\ stateId <- Hooks.useState AppStateEmpty
     resignPending /\ resignPendingId <- Hooks.useState false
     _ /\ resignTimerSubRef <- Hooks.useRef (Maybe.Nothing :: Maybe H.SubscriptionId)
+    aiEnabled /\ aiEnabledId <- Hooks.useState false
+    aiThinking /\ aiThinkingId <- Hooks.useState false
+    _ /\ aiWorkerRef <- Hooks.useRef (Maybe.Nothing :: Maybe AIWorker.AIWorker)
+
+    let
+      -- Replays the whole field into the AI worker from scratch.
+      replayAIWorker worker field = liftEffect do
+        AIWorker.post worker $ AIWorker.Init { width: Field.width field, height: Field.height field }
+        for_ (Array.reverse $ Array.fromFoldable $ Field.moves field) \(Tuple (Tuple x y) player) ->
+          AIWorker.post worker $ AIWorker.PutPoint { x, y } player
+
+      -- Returns the AI worker, creating it and syncing its state with the
+      -- given field when it doesn't exist yet.
+      ensureAIWorker field = do
+        maybeWorker <- liftEffect $ Ref.read aiWorkerRef
+        case maybeWorker of
+          Maybe.Just _ -> pure maybeWorker
+          Maybe.Nothing -> do
+            let
+              emitter = HS.makeEmitter \push -> do
+                worker <- AIWorker.create $ push <<< handleAIResponse
+                Ref.write (Maybe.Just worker) aiWorkerRef
+                pure do
+                  AIWorker.terminate worker
+                  Ref.write Maybe.Nothing aiWorkerRef
+            void $ Hooks.subscribe emitter
+            maybeWorker' <- liftEffect $ Ref.read aiWorkerRef
+            for_ maybeWorker' \worker -> replayAIWorker worker field
+            pure maybeWorker'
+
+      -- Resets the AI worker state to the given field of a new game.
+      resetAIWorker field = do
+        maybeWorker <- liftEffect $ Ref.read aiWorkerRef
+        case maybeWorker of
+          Maybe.Just worker -> replayAIWorker worker field
+          Maybe.Nothing -> void $ ensureAIWorker field
+
+      -- Sends an incremental update to the AI worker. The field must already
+      -- include the update — when the worker doesn't exist yet it's synced
+      -- from the field instead of the request.
+      updateAIWorker field request = do
+        maybeWorker <- liftEffect $ Ref.read aiWorkerRef
+        case maybeWorker of
+          Maybe.Just worker -> liftEffect $ AIWorker.post worker request
+          Maybe.Nothing -> void $ ensureAIWorker field
+
+      requestAIMove field = do
+        maybeWorker <- ensureAIWorker field
+        for_ maybeWorker \worker -> do
+          Hooks.put aiThinkingId true
+          liftEffect $ AIWorker.post worker $ AIWorker.Analyze (Field.nextPlayer field) aiThinkingTime
+
+      applyAIMove coords = do
+        enabled <- Hooks.get aiEnabledId
+        currentState <- Hooks.get stateId
+        case currentState of
+          AppStateLocalGame game | enabled ->
+            let
+              nextPlayer = Field.nextPlayer $ NonEmptyList.head game.fields
+            in
+              for_ (Field.putPoint (Tuple coords.x coords.y) nextPlayer $ NonEmptyList.head game.fields) \newField -> do
+                now' <- liftEffect $ Now.now
+                liftEffect playMoveSound
+                let
+                  elapsed :: Milliseconds
+                  elapsed = Instant.diff now' game.puttingTime
+                  diff = unwrap elapsed
+                  increment = Int.toNumber game.config.time.increment * 1000.0
+                putLocalGame stateId localGameId $ game
+                  { puttingTime = now'
+                  , timeLeft = case nextPlayer of
+                      Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
+                      Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
+                  , fields = NonEmptyList.cons newField game.fields
+                  , redoFields = Nil
+                  }
+                updateAIWorker newField $ AIWorker.PutPoint coords nextPlayer
+          _ -> pure unit
+
+      handleAIResponse = case _ of
+        Either.Right (AIWorker.AnalyzeResponse moves) -> do
+          -- The position can't change while the AI is thinking since moves are
+          -- blocked, so a still-set thinking flag means the response is for
+          -- the current position and the move can be applied as is.
+          thinking <- Hooks.get aiThinkingId
+          Hooks.put aiThinkingId false
+          when thinking $ for_ (Array.head moves) \move -> applyAIMove move.coords
+        Either.Right _ -> pure unit
+        Either.Left err -> do
+          Hooks.put aiThinkingId false
+          liftEffect $ Console.warn $ "Invalid AI worker response: " <> show err
 
     Hooks.useLifecycleEffect do
       let
@@ -1005,9 +1101,10 @@ appComponent =
             for_ (KeyboardEvent.fromEvent event) \ke ->
               case KeyboardEvent.key ke of
                 "ArrowLeft" -> push do
+                  thinking <- Hooks.get aiThinkingId
                   currentState <- Hooks.get stateId
                   case currentState of
-                    AppStateLocalGame game ->
+                    AppStateLocalGame game | not thinking ->
                       case NonEmptyList.uncons game.fields of
                         { head: currentField, tail: Cons prevField rest } -> do
                           now' <- liftEffect $ Now.now
@@ -1022,12 +1119,14 @@ appComponent =
                                 Player.Red -> game.timeLeft { red = Milliseconds $ max 0.0 (unwrap game.timeLeft.red - increment) }
                                 Player.Black -> game.timeLeft { black = Milliseconds $ max 0.0 (unwrap game.timeLeft.black - increment) }
                             }
+                          updateAIWorker prevField AIWorker.Undo
                         _ -> pure unit
                     _ -> pure unit
                 "ArrowRight" -> push do
+                  thinking <- Hooks.get aiThinkingId
                   currentState <- Hooks.get stateId
                   case currentState of
-                    AppStateLocalGame game ->
+                    AppStateLocalGame game | not thinking ->
                       case game.redoFields of
                         Cons redoField rest -> do
                           now' <- liftEffect $ Now.now
@@ -1045,6 +1144,8 @@ appComponent =
                                 Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
                                 Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
                             }
+                          for_ (List.head $ Field.moves redoField) \(Tuple (Tuple x y) player) ->
+                            updateAIWorker redoField $ AIWorker.PutPoint { x, y } player
                         Nil -> pure unit
                     _ -> pure unit
                 _ -> pure unit
@@ -1114,7 +1215,11 @@ appComponent =
             unsubscribe
             persistent <- Hooks.get localGameId
             now <- liftEffect Now.now
-            Hooks.put stateId $ Maybe.maybe AppStateEmpty AppStateLocalGame $ persistent >>= restoreLocalGame now
+            case persistent >>= restoreLocalGame now of
+              Maybe.Just game -> do
+                Hooks.put stateId $ AppStateLocalGame game
+                resetAIWorker $ NonEmptyList.head game.fields
+              Maybe.Nothing -> Hooks.put stateId AppStateEmpty
         pure $ Maybe.Just a
       AppQueryMessage response a -> do
         case response of
@@ -1305,6 +1410,26 @@ appComponent =
                                       [ HH.text "Draw" ]
                                   ]
                           _ -> []
+                      AppStateLocalGame game ->
+                        [ HH.div
+                            [ HP.class_ $ wrap aiToggleRowClass ]
+                            [ HH.input
+                                [ HP.id "ai-enabled"
+                                , HP.type_ HP.InputCheckbox
+                                , HP.checked aiEnabled
+                                , HP.class_ $ wrap aiToggleCheckboxClass
+                                , HE.onChecked \enabled -> do
+                                    Hooks.put aiEnabledId enabled
+                                    if enabled then void $ ensureAIWorker $ NonEmptyList.head game.fields
+                                    else Hooks.put aiThinkingId false
+                                ]
+                            , HH.label
+                                [ HP.for "ai-enabled"
+                                , HP.class_ $ wrap aiToggleLabelClass
+                                ]
+                                [ HH.text "AI" ]
+                            ]
+                        ]
                       _ -> []
                   )
                     <>
@@ -1398,8 +1523,8 @@ appComponent =
                           _field
                           unit
                           fieldComponent
-                          { fields: game.fields, pointer: true, drawSettings }
-                          \(Click (Tuple x y)) -> do
+                          { fields: game.fields, pointer: not aiThinking, drawSettings }
+                          \(Click (Tuple x y)) -> unless aiThinking do
                             now' <- liftEffect $ Now.now
                             liftEffect playMoveSound
                             let
@@ -1407,16 +1532,19 @@ appComponent =
                               elapsed = Instant.diff now' game.puttingTime
                               diff = unwrap elapsed
                               increment = Int.toNumber game.config.time.increment * 1000.0
-                            putLocalGame stateId localGameId $ game
-                              { puttingTime = now'
-                              , timeLeft = case nextPlayer of
-                                  Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
-                                  Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
-                              , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields)
-                                  $ Field.putPoint (Tuple x y) nextPlayer
-                                  $ NonEmptyList.head game.fields
-                              , redoFields = Nil
-                              }
+                              maybeNewField = Field.putPoint (Tuple x y) nextPlayer $ NonEmptyList.head game.fields
+                              newGame = game
+                                { puttingTime = now'
+                                , timeLeft = case nextPlayer of
+                                    Player.Red -> { red: Milliseconds $ max 0.0 (unwrap game.timeLeft.red - diff) + increment, black: game.timeLeft.black }
+                                    Player.Black -> { red: game.timeLeft.red, black: Milliseconds $ max 0.0 (unwrap game.timeLeft.black - diff) + increment }
+                                , fields = Maybe.maybe game.fields (_ `NonEmptyList.cons` game.fields) maybeNewField
+                                , redoFields = Nil
+                                }
+                            putLocalGame stateId localGameId newGame
+                            for_ maybeNewField \newField -> do
+                              updateAIWorker newField $ AIWorker.PutPoint { x, y } nextPlayer
+                              when aiEnabled $ requestAIMove newField
                     AppStateDrawSettings ->
                       HH.slot
                         _drawSettings
@@ -1457,14 +1585,19 @@ appComponent =
                         case _ of
                           CreateGame config -> Hooks.raise outputToken $ Message.CreateRequest config
                           CreateLocalGame config -> do
+                            -- Discard a possibly pending AI response which
+                            -- belongs to the previous local game.
+                            Hooks.put aiThinkingId false
                             now <- liftEffect $ Now.now
+                            let field = Field.emptyField config.size.width config.size.height
                             putLocalGame stateId localGameId
                               { config
                               , puttingTime: now
                               , timeLeft: { red: Milliseconds $ Int.toNumber $ config.time.total * 1000, black: Milliseconds $ Int.toNumber $ config.time.total * 1000 }
-                              , fields: NonEmptyList.singleton $ Field.emptyField config.size.width config.size.height
+                              , fields: NonEmptyList.singleton field
                               , redoFields: Nil
                               }
+                            resetAIWorker field
                             liftEffect $ putHistoryState AppHistoryStateLocalGame
                           CloseGame gameId -> Hooks.raise outputToken $ Message.CloseRequest gameId
                 ]
@@ -1629,6 +1762,15 @@ btnDrawOfferedClass = "btn-draw-offered"
 
 btnDrawOpponentClass :: String
 btnDrawOpponentClass = "btn-draw-opponent"
+
+aiToggleRowClass :: String
+aiToggleRowClass = "ai-toggle-row"
+
+aiToggleCheckboxClass :: String
+aiToggleCheckboxClass = "ai-toggle-checkbox"
+
+aiToggleLabelClass :: String
+aiToggleLabelClass = "ai-toggle-label"
 
 main :: Effect Unit
 main = do

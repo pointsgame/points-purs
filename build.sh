@@ -4,6 +4,7 @@ rm -rf ./result/
 mkdir -p ./result/
 
 cp --reflink=always ./logo.svg ./result/logo.svg
+cp --reflink=always ./ai-worker.js ./result/ai-worker.js
 
 spago bundle -p points --minify
 cp --reflink=always ./index.js ./result/
