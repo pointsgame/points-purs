@@ -207,7 +207,6 @@
             "argonaut",
             "argonaut-generic",
             "arrays",
-            "canvas",
             "console",
             "coroutines",
             "datetime",
@@ -225,6 +224,7 @@
             "ordered-collections",
             "prelude",
             "refs",
+            "render",
             "strings",
             "transformers",
             "tuples",
@@ -309,6 +309,7 @@
             "random",
             "record",
             "refs",
+            "render",
             "safe-coerce",
             "spec",
             "st",
@@ -333,6 +334,64 @@
             "web-touchevents",
             "web-uievents",
             "web-url"
+          ]
+        },
+        "test": {
+          "dependencies": [],
+          "build_plan": []
+        }
+      },
+      "render": {
+        "path": "render",
+        "core": {
+          "dependencies": [
+            "canvas",
+            "field",
+            "transformers"
+          ],
+          "build_plan": [
+            "arraybuffer-types",
+            "arrays",
+            "bifunctors",
+            "canvas",
+            "const",
+            "contravariant",
+            "control",
+            "distributive",
+            "effect",
+            "either",
+            "enums",
+            "exceptions",
+            "exists",
+            "field",
+            "foldable-traversable",
+            "functions",
+            "functors",
+            "gen",
+            "identity",
+            "integers",
+            "invariant",
+            "lazy",
+            "lists",
+            "maybe",
+            "newtype",
+            "nonempty",
+            "numbers",
+            "ordered-collections",
+            "orders",
+            "partial",
+            "prelude",
+            "profunctor",
+            "refs",
+            "safe-coerce",
+            "st",
+            "strings",
+            "tailrec",
+            "transformers",
+            "tuples",
+            "type-equality",
+            "unfoldable",
+            "unsafe-coerce"
           ]
         },
         "test": {

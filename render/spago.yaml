@@ -1,0 +1,6 @@
+package:
+  name: render
+  dependencies:
+    - field
+    - transformers
+    - canvas

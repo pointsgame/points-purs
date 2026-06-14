@@ -2,6 +2,7 @@ package:
   name: points
   dependencies:
     - field
+    - render
     - console
     - effect
     - prelude
@@ -13,7 +14,6 @@ package:
     - strings
     - transformers
     - ordered-collections
-    - canvas
     - web-socket
     - argonaut
     - argonaut-generic
