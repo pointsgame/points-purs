@@ -417,17 +417,18 @@ draw
             $ List.zip (NonEmptyList.toList surrounding)
             $ NonEmptyList.tail surrounding <> List.singleton (NonEmptyList.head surrounding)
         else
-          map fromPos $ NonEmptyList.tail surrounding
+          map fromPos $ NonEmptyList.toList surrounding
+      tracePolygon chain = case toPolygon chain of
+        Nil -> pure unit
+        start : rest -> do
+          uncurry (moveTo context) start
+          traverse_ (uncurry (lineTo context)) rest
+          closePath context
     for_ surroundings' \(Tuple surrounding holes) -> do
       setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
       beginPath context
-      uncurry (moveTo context) $ fromPos $ NonEmptyList.head surrounding
-      traverse_ (uncurry (lineTo context)) $ toPolygon surrounding
-      closePath context
-      for_ holes \hole -> do
-        uncurry (moveTo context) $ fromPos $ NonEmptyList.head hole
-        traverse_ (uncurry (lineTo context)) $ toPolygon hole
-        closePath context
+      tracePolygon surrounding
+      for_ holes tracePolygon
       fill context
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
