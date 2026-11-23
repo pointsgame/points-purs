@@ -22,7 +22,7 @@ import Data.Number (pi, sqrt)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple as Tuple
-import Data.Tuple.Nested (type (/\), tuple4, (/\))
+import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
 import Field as Field
@@ -89,55 +89,68 @@ toPosXY reflection areaSize fieldSize x =
 shift :: Number -> Number -> Number
 shift size balancedSize = toNumber $ floor $ (size - balancedSize) / 2.0
 
-type Margins =
-  { top :: Number
-  , right :: Number
-  , bottom :: Number
-  , left :: Number
-  }
-
-noMargins :: Margins
-noMargins = { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 }
-
+-- | Size of the margin reserved for coordinate labels, relative to the cell size.
 coordsMarginFactor :: Number
 coordsMarginFactor = 0.6
 
-coordsMargins :: Boolean -> Boolean -> Boolean -> Boolean -> Number -> Margins
-coordsMargins top right bottom left cellSize =
-  let
-    m = cellSize * coordsMarginFactor
-  in
-    { top: if top then m else 0.0
-    , right: if right then m else 0.0
-    , bottom: if bottom then m else 0.0
-    , left: if left then m else 0.0
-    }
+-- | Pixel geometry of a field drawn on a canvas area.
+type Layout =
+  { -- | Distance between adjacent grid lines.
+    cellSize :: Number
+  -- | Size of the area covered by the grid cells (without coordinate margins).
+  , gridWidth :: Number
+  , gridHeight :: Number
+  -- | Top left corner of the grid area.
+  , shiftX :: Number
+  , shiftY :: Number
+  -- | Game position to canvas coordinate, snapped to the pixel grid.
+  , fromPosX :: Int -> Number
+  , fromPosY :: Int -> Number
+  -- | Canvas coordinate to game position (may be outside the field).
+  , toPosX :: Number -> Int
+  , toPosY :: Number -> Int
+  }
 
-dimensions :: Int -> Int -> Number -> Number -> Margins -> Number /\ Number /\ Number /\ Number /\ Unit
-dimensions fieldWidth fieldHeight width height margins =
+layout :: DrawSettings -> Field -> Number -> Number -> Layout
+layout
+  { hReflection
+  , vReflection
+  , gridThickness
+  , coordsTop
+  , coordsRight
+  , coordsBottom
+  , coordsLeft
+  }
+  field
+  width
+  height =
   let
-    fieldHeight' = toNumber fieldHeight
-    fieldWidth' = toNumber fieldWidth
-    availWidth = width - margins.left - margins.right
-    availHeight = height - margins.top - margins.bottom
-    width' = min availWidth $ availHeight / fieldHeight' * fieldWidth'
-    height' = min availHeight $ availWidth / fieldWidth' * fieldHeight'
-    shiftX = margins.left + shift availWidth width'
-    shiftY = margins.top + shift availHeight height'
-  in
-    width' /\ height' /\ shiftX /\ shiftY /\ unit
-
-fromToFieldPos :: Int -> Boolean -> Boolean -> Int -> Int -> Number -> Number -> Margins -> (Int -> Number) /\ (Int -> Number) /\ (Number -> Int) /\ (Number -> Int) /\ Unit
-fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins =
-  let
-    width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height margins
+    fieldWidth = Field.width field
+    fieldHeight = Field.height field
+    count b = if b then 1.0 else 0.0
+    -- Margins are proportional to the cell size, so pick the cell size such
+    -- that the grid together with its margins fits into the area.
+    cellSize = min
+      (width / (toNumber fieldWidth + coordsMarginFactor * (count coordsLeft + count coordsRight)))
+      (height / (toNumber fieldHeight + coordsMarginFactor * (count coordsTop + count coordsBottom)))
+    margin b = if b then cellSize * coordsMarginFactor else 0.0
+    gridWidth = cellSize * toNumber fieldWidth
+    gridHeight = cellSize * toNumber fieldHeight
+    shiftX = margin coordsLeft + shift (width - margin coordsLeft - margin coordsRight) gridWidth
+    shiftY = margin coordsTop + shift (height - margin coordsTop - margin coordsBottom) gridHeight
     pixelShift = if gridThickness `mod` 2 == 1 then 0.5 else 0.0
+    snap coord = toNumber (floor coord) + pixelShift
   in
-    tuple4
-      ((_ + pixelShift) <<< toNumber <<< floor <<< (shiftX + _) <<< fromPosXY hReflection width' fieldWidth) -- fromGamePosX
-      ((_ + pixelShift) <<< toNumber <<< floor <<< (shiftY + _) <<< fromPosXY (not vReflection) height' fieldHeight) -- fromGamePosY
-      (\coordX -> toPosXY hReflection width' fieldWidth (coordX - shiftX)) -- toGamePosX
-      (\coordY -> toPosXY (not vReflection) height' fieldHeight (coordY - shiftY)) -- toGamePosY
+    { cellSize
+    , gridWidth
+    , gridHeight
+    , shiftX
+    , shiftY
+    , fromPosX: \x -> snap $ shiftX + fromPosXY hReflection gridWidth fieldWidth x
+    , fromPosY: \y -> snap $ shiftY + fromPosXY (not vReflection) gridHeight fieldHeight y
+    , toPosX: \coordX -> toPosXY hReflection gridWidth fieldWidth (coordX - shiftX)
+    , toPosY: \coordY -> toPosXY (not vReflection) gridHeight fieldHeight (coordY - shiftY)
+    }
 
 surrounded :: NonEmptyList Field -> Map.Map Pos Int
 surrounded fields =
@@ -266,6 +279,7 @@ polygonShiftWide r pos nextPos =
 
 draw :: DrawSettings -> Map.Map Pos Int -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
+  drawSettings@
   { hReflection
   , vReflection
   , gridThickness
@@ -293,12 +307,8 @@ draw
       headField = NonEmptyList.head fields
       fieldWidth = Field.width headField
       fieldHeight = Field.height headField
-      -- Estimate cell size for margin calculation (use a preliminary computation).
-      prelimCellSize = min (width / toNumber fieldWidth) (height / toNumber fieldHeight)
-      margins = coordsMargins coordsTop coordsRight coordsBottom coordsLeft prelimCellSize
-      width' /\ height' /\ shiftX /\ shiftY /\ _ = dimensions fieldWidth fieldHeight width height margins
-      scale = width' / toNumber fieldWidth
-      fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins
+      { cellSize: scale, gridWidth: width', gridHeight: height', shiftX, shiftY, fromPosX, fromPosY } =
+        layout drawSettings headField width height
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
       verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
       horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
@@ -433,16 +443,10 @@ draw
 
 drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
 drawPointer
-  { hReflection
-  , vReflection
-  , gridThickness
-  , redColor
+  drawSettings@
+  { redColor
   , blackColor
   , pointRadius
-  , coordsTop
-  , coordsRight
-  , coordsBottom
-  , coordsLeft
   }
   width
   height
@@ -457,13 +461,7 @@ drawPointer
       when (Field.isPuttingAllowed headField pos) $
         do
           let
-            fieldWidth = Field.width headField
-            fieldHeight = Field.height headField
-            prelimCellSize = min (width / toNumber fieldWidth) (height / toNumber fieldHeight)
-            margins = coordsMargins coordsTop coordsRight coordsBottom coordsLeft prelimCellSize
-            width' /\ _ /\ _ /\ _ /\ _ = dimensions fieldWidth fieldHeight width height margins
-            scale = width' / toNumber fieldWidth
-            fromPosX /\ fromPosY /\ _ /\ _ /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight width height margins
+            { cellSize: scale, fromPosX, fromPosY } = layout drawSettings headField width height
             player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
           setGlobalAlpha context 0.33
           beginPath context

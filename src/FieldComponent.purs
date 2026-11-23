@@ -31,7 +31,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, draw, drawPointer, fromToFieldPos, coordsMargins, mergedSurroundings, surrounded)
+import Render (DrawSettings, draw, drawPointer, layout, mergedSurroundings, surrounded)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -148,14 +148,9 @@ toPos canvas field drawSettings dpr transform x y = do
     vy = (y + transform.y) * dpr
     fieldWidth = Field.width field
     fieldHeight = Field.height field
-    hReflection = drawSettings.hReflection
-    vReflection = drawSettings.vReflection
-    gridThickness = drawSettings.gridThickness
-    prelimCellSize = min (vWidth / toNumber fieldWidth) (vHeight / toNumber fieldHeight)
-    margins = coordsMargins drawSettings.coordsTop drawSettings.coordsRight drawSettings.coordsBottom drawSettings.coordsLeft prelimCellSize
-    _ /\ _ /\ toGamePosX /\ toGamePosY /\ _ = fromToFieldPos gridThickness hReflection vReflection fieldWidth fieldHeight vWidth vHeight margins
-    posX = toGamePosX vx
-    posY = toGamePosY vy
+    { toPosX, toPosY } = layout drawSettings field vWidth vHeight
+    posX = toPosX vx
+    posY = toPosY vy
   pure $ if posX >= 0 && posY >= 0 && posX < fieldWidth && posY < fieldHeight then Just (Tuple posX posY) else Nothing
 
 type Input = { fields :: NonEmptyList Field, pointer :: Boolean, drawSettings :: DrawSettings }
