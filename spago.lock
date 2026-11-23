@@ -82,8 +82,7 @@
         "core": {
           "dependencies": [
             "canvas",
-            "field",
-            "transformers"
+            "field"
           ]
         },
         "test": {

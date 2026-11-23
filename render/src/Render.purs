@@ -3,9 +3,7 @@ module Render where
 import Prelude
 
 import Control.Bind (bindFlipped)
-import Control.Monad.Writer (execWriter, tell)
 import Data.Foldable (traverse_, for_)
-import Data.Function (applyFlipped)
 import Data.Functor (voidRight)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
@@ -14,10 +12,7 @@ import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
-import Data.Maybe (maybe)
 import Data.Maybe as Maybe
-import Data.Monoid.Endo (Endo(..))
-import Data.Newtype (unwrap)
 import Data.Number (pi, sqrt)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
@@ -179,65 +174,39 @@ surrounded fields =
 surroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List Chain
 surroundings surrounded' fullFill innerSurroundings fields =
   let
-    tell' surrounding = tell $ Endo $ (:) surrounding
-    surrounded'' =
+    excluded =
       if innerSurroundings then
         Set.empty
       else
         surrounded'
+    included pos = not $ Set.member pos excluded
+    chains = do
+      field <- NonEmptyList.toList fields
+      List.filter (included <<< NonEmptyList.head) $ Field.lastSurroundChains field
+    -- Quadrants around a point, counter-clockwise: two orthogonal neighbours
+    -- and the diagonal neighbour between them.
+    quadrants =
+      (Field.s /\ Field.se /\ Field.e)
+        : (Field.e /\ Field.ne /\ Field.n)
+        : (Field.n /\ Field.nw /\ Field.w)
+        : (Field.w /\ Field.sw /\ Field.s)
+        : Nil
+    triangles field pos player = do
+      a /\ d /\ b <- quadrants
+      let
+        owns dir = Field.isOwner field (dir pos) player
+        triangle dir1 dir2 = NonEmptyList.cons' pos $ dir1 pos : dir2 pos : Nil
+        triangleIf cond dir1 dir2 = if cond then List.singleton $ triangle dir1 dir2 else Nil
+      if owns a && owns b then
+        List.singleton $ triangle a b
+      else
+        triangleIf (owns a && owns d) a d <> triangleIf (owns d && owns b) d b
+    fills = do
+      field /\ lastMove <- List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields)
+      pos /\ player <- List.fromFoldable lastMove
+      if included pos then triangles field pos player else Nil
   in
-    applyFlipped Nil $ unwrap $ execWriter do
-      for_ fields \field ->
-        for_ (Field.lastSurroundChains field) \chain ->
-          when (not $ Set.member (NonEmptyList.head chain) surrounded'') $
-            tell' chain
-      when fullFill $ for_
-        (List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields))
-        \(Tuple field posPlayer) -> flip (maybe (pure unit)) posPlayer \(Tuple pos player) -> when (not $ Set.member pos surrounded'') do
-          if Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.e pos) player then
-            tell' $ NonEmptyList.cons' pos $ Field.s pos : Field.e pos : List.Nil
-          else do
-            when (Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.se pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.s pos : Field.se pos : List.Nil
-            when (Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.se pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.se pos : Field.e pos : List.Nil
-          if Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.n pos) player then
-            tell' $ NonEmptyList.cons' pos $ Field.e pos : Field.n pos : List.Nil
-          else do
-            when (Field.isOwner field (Field.e pos) player && Field.isOwner field (Field.ne pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.e pos : Field.ne pos : List.Nil
-            when (Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.ne pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.ne pos : Field.n pos : List.Nil
-          if Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.w pos) player then
-            tell' $ NonEmptyList.cons' pos $ Field.n pos : Field.w pos : List.Nil
-          else do
-            when (Field.isOwner field (Field.n pos) player && Field.isOwner field (Field.nw pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.n pos : Field.nw pos : List.Nil
-            when (Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.nw pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.nw pos : Field.w pos : List.Nil
-          if Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.s pos) player then
-            tell' $ NonEmptyList.cons' pos $ Field.w pos : Field.s pos : List.Nil
-          else do
-            when (Field.isOwner field (Field.w pos) player && Field.isOwner field (Field.sw pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.w pos : Field.sw pos : List.Nil
-            when (Field.isOwner field (Field.s pos) player && Field.isOwner field (Field.sw pos) player)
-              $ tell'
-              $ NonEmptyList.cons' pos
-              $ Field.sw pos : Field.s pos : List.Nil
+    chains <> if fullFill then fills else Nil
 
 mergedSurroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
 mergedSurroundings surrounded' fullFill innerSurroundings fields = connectHoles $ merge $ surroundings surrounded' fullFill innerSurroundings fields
