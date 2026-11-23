@@ -13,7 +13,7 @@ import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Maybe as Maybe
-import Data.Number (pi, sqrt)
+import Data.Number (abs, pi, sqrt)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Tuple as Tuple
@@ -21,7 +21,7 @@ import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
 import Field as Field
-import Graphics.Canvas (Context2D, TextAlign(..), TextBaseline(..), arc, beginPath, closePath, fill, fillText, lineTo, moveTo, setFillStyle, setFont, setGlobalAlpha, setLineWidth, setStrokeStyle, setTextAlign, setTextBaseline, stroke)
+import Graphics.Canvas (Context2D, TextAlign(..), TextBaseline(..), arc, beginPath, closePath, fill, fillText, lineTo, moveTo, rect, setFillStyle, setFont, setGlobalAlpha, setLineWidth, setStrokeStyle, setTextAlign, setTextBaseline, stroke)
 import Partial.Unsafe as UnsafePartial
 import Player (Player)
 import Player as Player
@@ -295,6 +295,7 @@ draw
         setTextAlign context align
         setTextBaseline context baseline
         for_ indices \i -> uncurry (fillText context $ show $ i + 1) $ toCoords i
+      players = [ Player.Red, Player.Black ]
     setGlobalAlpha context 1.0
     -- Render grid.
     setLineWidth context $ toNumber gridThickness
@@ -330,47 +331,44 @@ draw
       setStrokeStyle context $ color player
       circle context (fromPosX x) (fromPosY y) (pointR * 5.0 / 3.0)
       stroke context
-    -- Render lines.
+    -- Render lines, a single path per player: this is faster than filling
+    -- every rectangle separately.
     setGlobalAlpha context fillingAlpha
     when (fullFill && extendedFill) do
-      let rs = pointR / sqrt 2.0
-      for_ (Field.moves headField) \(Tuple pos player) -> when (innerSurroundings || not (Map.member pos surrounded')) do
-        let
-          -- Whether `pos'` is the player's point or was surrounded earlier
-          -- than `pos` (or `pos` was never surrounded).
-          isOwner pos' = Field.isPlayer headField pos' player
-            || Maybe.maybe false (\i -> Maybe.maybe true (i < _) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
+      let
+        rs = pointR / sqrt 2.0
+        -- Rectangles are added with normalized coordinates so that all of them
+        -- have the same winding and overlaps are filled only once.
+        hBar (x1 /\ y) (x2 /\ _) = rect context { x: min x1 x2, y: y - rs, width: abs (x2 - x1), height: 2.0 * rs }
+        vBar (x /\ y1) (_ /\ y2) = rect context { x: x - rs, y: min y1 y2, width: 2.0 * rs, height: abs (y2 - y1) }
+      for_ players \player -> do
         setFillStyle context $ color player
-        when
-          ( Field.isPlayer headField (Field.e pos) player
-              && not (isOwner $ Field.n pos)
-              && not (isOwner $ Field.s pos)
-              && not (isOwner $ Field.ne pos)
-              && not (isOwner $ Field.se pos)
-          )
-          do
-            beginPath context
-            uncurry (moveTo context) $ ((+) (0.0 /\ -rs)) $ fromPos pos
-            uncurry (lineTo context) $ ((+) (0.0 /\ -rs)) $ fromPos $ Field.e pos
-            uncurry (lineTo context) $ ((+) (0.0 /\ rs)) $ fromPos $ Field.e pos
-            uncurry (lineTo context) $ ((+) (0.0 /\ rs)) $ fromPos pos
-            closePath context
-            fill context
-        when
-          ( Field.isPlayer headField (Field.s pos) player
-              && not (isOwner $ Field.w pos)
-              && not (isOwner $ Field.e pos)
-              && not (isOwner $ Field.sw pos)
-              && not (isOwner $ Field.se pos)
-          )
-          do
-            beginPath context
-            uncurry (moveTo context) $ ((+) (-rs /\ 0.0)) $ fromPos pos
-            uncurry (lineTo context) $ ((+) (-rs /\ 0.0)) $ fromPos $ Field.s pos
-            uncurry (lineTo context) $ ((+) (rs /\ 0.0)) $ fromPos $ Field.s pos
-            uncurry (lineTo context) $ ((+) (rs /\ 0.0)) $ fromPos pos
-            closePath context
-            fill context
+        beginPath context
+        -- Filter by player first: the body below is evaluated strictly even
+        -- when it's not run, so it shouldn't be built for other player's moves.
+        for_ (List.filter ((_ == player) <<< Tuple.snd) $ Field.moves headField) \(Tuple pos _) -> when (innerSurroundings || not (Map.member pos surrounded')) do
+          let
+            -- Whether `pos'` is the player's point or was surrounded earlier
+            -- than `pos` (or `pos` was never surrounded).
+            isOwner pos' = Field.isPlayer headField pos' player
+              || Maybe.maybe false (\i -> Maybe.maybe true (i < _) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
+          when
+            ( Field.isPlayer headField (Field.e pos) player
+                && not (isOwner $ Field.n pos)
+                && not (isOwner $ Field.s pos)
+                && not (isOwner $ Field.ne pos)
+                && not (isOwner $ Field.se pos)
+            )
+            $ hBar (fromPos pos) (fromPos $ Field.e pos)
+          when
+            ( Field.isPlayer headField (Field.s pos) player
+                && not (isOwner $ Field.w pos)
+                && not (isOwner $ Field.e pos)
+                && not (isOwner $ Field.sw pos)
+                && not (isOwner $ Field.se pos)
+            )
+            $ vBar (fromPos pos) (fromPos $ Field.s pos)
+        fill context
     -- Rendering surroundings.
     let
       reflectShift (x /\ y) = x * (if hReflection then -1.0 else 1.0) /\ y * (if vReflection then -1.0 else 1.0)
