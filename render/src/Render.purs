@@ -4,7 +4,6 @@ import Prelude
 
 import Control.Bind (bindFlipped)
 import Data.Foldable (foldr, for_, traverse_)
-import Data.Functor (voidRight)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
 import Data.List (List(..), mapMaybe, (:))
@@ -22,8 +21,9 @@ import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
 import Field (Field, Pos, Chain)
 import Field as Field
-import Graphics.Canvas (Context2D, TextAlign(..), TextBaseline(..), arc, beginPath, clearRect, closePath, fill, fillText, lineTo, moveTo, setFillStyle, setFont, setGlobalAlpha, setLineWidth, setStrokeStyle, setTextAlign, setTextBaseline, stroke)
+import Graphics.Canvas (Context2D, TextAlign(..), TextBaseline(..), arc, beginPath, closePath, fill, fillText, lineTo, moveTo, setFillStyle, setFont, setGlobalAlpha, setLineWidth, setStrokeStyle, setTextAlign, setTextBaseline, stroke)
 import Partial.Unsafe as UnsafePartial
+import Player (Player)
 import Player as Player
 import PolygonMerge (connectHoles, merge)
 
@@ -89,6 +89,21 @@ shift size balancedSize = toNumber $ floor $ (size - balancedSize) / 2.0
 coordsMarginFactor :: Number
 coordsMarginFactor = 0.6
 
+-- | Gap between the grid and coordinate labels, relative to the cell size.
+coordsGapFactor :: Number
+coordsGapFactor = coordsMarginFactor * 0.15
+
+playerColor :: DrawSettings -> Player -> String
+playerColor { redColor, blackColor } player = if player == Player.Red then redColor else blackColor
+
+-- | Radius of a point in pixels.
+pointRadiusPx :: DrawSettings -> Number -> Number
+pointRadiusPx { pointRadius } cellSize = pointRadius * cellSize / 5.0
+
+-- | Adds a full circle to the current path.
+circle :: Context2D -> Number -> Number -> Number -> Effect Unit
+circle context x y radius = arc context { x, y, radius, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
+
 -- | Pixel geometry of a field drawn on a canvas area.
 type Layout =
   { -- | Distance between adjacent grid lines.
@@ -148,29 +163,19 @@ layout
     , toPosY: \coordY -> toPosXY (not vReflection) gridHeight fieldHeight (coordY - shiftY)
     }
 
+-- | Surrounded positions, mapped to the index of the field in the history
+-- | (oldest first) where they were surrounded for the first time.
 surrounded :: NonEmptyList Field -> Map.Map Pos Int
 surrounded fields =
   Map.unions
-    $ mapWithIndex
-        ( \index field ->
-            voidRight index
-              $ Set.toMap
-              $ Set.unions
-              $ mapMaybe
-                  ( \chain ->
-                      let
-                        pos = NonEmptyList.head chain
-                        nextPos = List.head $ NonEmptyList.tail chain
-                      in
-                        map (uncurry $ Field.getInsideChain field)
-                          $ map (flip Tuple chain)
-                          $ map (UnsafePartial.unsafePartial $ Field.getInnerPos pos) nextPos
-                  )
-              $
-                Field.lastSurroundChains field
-        )
+    $ mapWithIndex (\index field -> Set.toMap (insideChains field) $> index)
     $ List.reverse
     $ NonEmptyList.toList fields
+  where
+  insideChains field = Set.unions $ mapMaybe (insideChain field) $ Field.lastSurroundChains field
+  insideChain field chain =
+    List.head (NonEmptyList.tail chain) <#> \nextPos ->
+      Field.getInsideChain field (UnsafePartial.unsafePartial $ Field.getInnerPos (NonEmptyList.head chain) nextPos) chain
 
 surroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List Chain
 surroundings surrounded' fullFill innerSurroundings fields =
@@ -246,24 +251,7 @@ polygonShift r pos nextPos =
       (-1), 1 -> (r /\ 0.0) /\ (0.0 /\ -r)
       (-1), 0 -> (0.0 /\ -rs) /\ (0.0 /\ -rs)
 
-polygonShiftWide :: Partial => Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
-polygonShiftWide r pos nextPos =
-  let
-    dx = Tuple.fst pos - Tuple.fst nextPos
-    dy = Tuple.snd pos - Tuple.snd nextPos
-    rs = r / sqrt 2.0
-    s = case dx, dy of
-      -1, -1 -> (-rs /\ -rs)
-      0, -1 -> (-r /\ 0.0)
-      1, -1 -> (-rs /\ rs)
-      1, 0 -> (0.0 /\ r)
-      1, 1 -> (rs /\ rs)
-      0, 1 -> (r /\ 0.0)
-      (-1), 1 -> (rs /\ -rs)
-      (-1), 0 -> (0.0 /\ -r)
-  in
-    s /\ s
-
+-- | Draws the field. The canvas area is expected to be cleared by the caller.
 draw :: DrawSettings -> Map.Map Pos Int -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   drawSettings@
@@ -271,9 +259,6 @@ draw
   , vReflection
   , gridThickness
   , gridColor
-  , redColor
-  , blackColor
-  , pointRadius
   , fillingAlpha
   , fullFill
   , extendedFill
@@ -297,14 +282,21 @@ draw
       { cellSize: scale, gridWidth: width', gridHeight: height', shiftX, shiftY, fromPosX, fromPosY } =
         layout drawSettings headField width height
       fromPos (Tuple x y) = Tuple (fromPosX x) (fromPosY y)
-      verticalLines = map fromPosX $ List.range 0 (fieldWidth - 1)
-      horizontalLines = map fromPosY $ List.range 0 (fieldHeight - 1)
+      columns = List.range 0 (fieldWidth - 1)
+      rows = List.range 0 (fieldHeight - 1)
+      verticalLines = map fromPosX columns
+      horizontalLines = map fromPosY rows
       coordFontSize = scale * coordsMarginFactor * 0.7
       coordFont = show (floor coordFontSize) <> "px sans-serif"
-    -- Render background.
+      labelGap = scale * coordsGapFactor
+      pointR = pointRadiusPx drawSettings scale
+      color = playerColor drawSettings
+      drawLabels align baseline indices toCoords = do
+        setTextAlign context align
+        setTextBaseline context baseline
+        for_ indices \i -> uncurry (fillText context $ show $ i + 1) $ toCoords i
     setGlobalAlpha context 1.0
-    clearRect context { x: 0.0, y: 0.0, width, height }
-    -- Render grig.
+    -- Render grid.
     setLineWidth context $ toNumber gridThickness
     setStrokeStyle context gridColor
     for_ verticalLines \x -> do
@@ -321,54 +313,34 @@ draw
     when (coordsTop || coordsRight || coordsBottom || coordsLeft) do
       setFont context coordFont
       setFillStyle context gridColor
-      -- Top and bottom: column numbers.
-      when (coordsTop || coordsBottom) do
-        setTextAlign context AlignCenter
-        for_ (List.range 0 (fieldWidth - 1)) \x -> do
-          let
-            label = show (x + 1)
-            xPos = fromPosX x
-          when coordsTop do
-            setTextBaseline context BaselineBottom
-            fillText context label xPos (shiftY - scale * coordsMarginFactor * 0.15)
-          when coordsBottom do
-            setTextBaseline context BaselineTop
-            fillText context label xPos (shiftY + height' + scale * coordsMarginFactor * 0.15)
-      -- Left and right: row numbers.
-      when (coordsLeft || coordsRight) do
-        setTextBaseline context BaselineMiddle
-        for_ (List.range 0 (fieldHeight - 1)) \y -> do
-          let
-            label = show (y + 1)
-            yPos = fromPosY y
-          when coordsLeft do
-            setTextAlign context AlignRight
-            fillText context label (shiftX - scale * coordsMarginFactor * 0.15) yPos
-          when coordsRight do
-            setTextAlign context AlignLeft
-            fillText context label (shiftX + width' + scale * coordsMarginFactor * 0.15) yPos
+      when coordsTop $ drawLabels AlignCenter BaselineBottom columns \x -> fromPosX x /\ (shiftY - labelGap)
+      when coordsBottom $ drawLabels AlignCenter BaselineTop columns \x -> fromPosX x /\ (shiftY + height' + labelGap)
+      when coordsLeft $ drawLabels AlignRight BaselineMiddle rows \y -> (shiftX - labelGap) /\ fromPosY y
+      when coordsRight $ drawLabels AlignLeft BaselineMiddle rows \y -> (shiftX + width' + labelGap) /\ fromPosY y
     -- Render points.
     for_ (Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
-      setFillStyle context $ if player == Player.Red then redColor else blackColor
-      arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
+      setFillStyle context $ color player
+      circle context (fromPosX x) (fromPosY y) pointR
       fill context
     -- Render last point.
     for_ (List.head $ Field.moves headField) \(Tuple (Tuple x y) player) -> do
       beginPath context
       setLineWidth context 2.0
-      setStrokeStyle context $ if player == Player.Red then redColor else blackColor
-      arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 3.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
+      setStrokeStyle context $ color player
+      circle context (fromPosX x) (fromPosY y) (pointR * 5.0 / 3.0)
       stroke context
     -- Render lines.
     setGlobalAlpha context fillingAlpha
     when (fullFill && extendedFill) do
-      let rs = pointRadius * scale / 5.0 / sqrt 2.0
+      let rs = pointR / sqrt 2.0
       for_ (Field.moves headField) \(Tuple pos player) -> when (innerSurroundings || not (Map.member pos surrounded')) do
         let
-          isOwner pos' = Field.isPlayer headField pos' player ||
-            Maybe.maybe false (\i -> Maybe.maybe true ((<) i) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
-        setFillStyle context $ if player == Player.Red then redColor else blackColor
+          -- Whether `pos'` is the player's point or was surrounded earlier
+          -- than `pos` (or `pos` was never surrounded).
+          isOwner pos' = Field.isPlayer headField pos' player
+            || Maybe.maybe false (\i -> Maybe.maybe true (i < _) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
+        setFillStyle context $ color player
         when
           ( Field.isPlayer headField (Field.e pos) player
               && not (isOwner $ Field.n pos)
@@ -407,7 +379,7 @@ draw
           bindFlipped
             ( \(Tuple pos nextPos) ->
                 let
-                  shift1 /\ shift2 = UnsafePartial.unsafePartial $ polygonShift (pointRadius * scale / 5.0) pos nextPos
+                  shift1 /\ shift2 = UnsafePartial.unsafePartial $ polygonShift pointR pos nextPos
                 in
                   (fromPos pos + reflectShift shift1) : (fromPos nextPos + reflectShift shift2) : Nil
             )
@@ -422,36 +394,22 @@ draw
           traverse_ (uncurry (lineTo context)) rest
           closePath context
     for_ surroundings' \(Tuple surrounding holes) -> do
-      setFillStyle context $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then redColor else blackColor
+      setFillStyle context $ color $ if Field.isPlayer headField (NonEmptyList.head surrounding) Player.Red then Player.Red else Player.Black
       beginPath context
       tracePolygon surrounding
       for_ holes tracePolygon
       fill context
 
-drawPointer :: DrawSettings -> Number -> Number -> NonEmptyList Field -> Pos -> Context2D -> Effect Unit
-drawPointer
-  drawSettings@
-  { redColor
-  , blackColor
-  , pointRadius
-  }
-  width
-  height
-  fields
-  pos@(Tuple x y)
-  context =
-  let
-    headField = NonEmptyList.head fields
-  in
-    do
-      clearRect context { x: 0.0, y: 0.0, width, height }
-      when (Field.isPuttingAllowed headField pos) $
-        do
-          let
-            { cellSize: scale, fromPosX, fromPosY } = layout drawSettings headField width height
-            player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer headField
-          setGlobalAlpha context 0.33
-          beginPath context
-          setFillStyle context $ if player == Player.Red then redColor else blackColor
-          arc context { x: fromPosX x, y: fromPosY y, radius: pointRadius * scale / 5.0, start: 0.0, end: 2.0 * pi, useCounterClockwise: true }
-          fill context
+-- | Draws the point that would be put at `pos`. The canvas area is expected
+-- | to be cleared by the caller.
+drawPointer :: DrawSettings -> Number -> Number -> Field -> Pos -> Context2D -> Effect Unit
+drawPointer drawSettings width height field pos@(Tuple x y) context =
+  when (Field.isPuttingAllowed field pos) do
+    let
+      { cellSize, fromPosX, fromPosY } = layout drawSettings field width height
+      player = Maybe.fromMaybe Player.Red $ map Player.nextPlayer $ Field.lastPlayer field
+    setGlobalAlpha context 0.33
+    beginPath context
+    setFillStyle context $ playerColor drawSettings player
+    circle context (fromPosX x) (fromPosY y) (pointRadiusPx drawSettings cellSize)
+    fill context

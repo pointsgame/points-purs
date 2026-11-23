@@ -338,7 +338,7 @@ fieldComponent =
                   case mpos of
                     Just pos -> lift $ withContext context do
                       translate context { translateX: -(toNumber $ round $ transform.x * dpr), translateY: -(toNumber $ round $ transform.y * dpr) }
-                      drawPointer input.drawSettings (width * transform.scale) (height * transform.scale) input.fields pos context
+                      drawPointer input.drawSettings (width * transform.scale) (height * transform.scale) (NonEmptyList.head input.fields) pos context
                     Nothing -> pure unit
             , HE.onMouseLeave \_ -> liftEffect $ void $ runMaybeT do
                 canvas <- wrap $ getCanvasElementById "canvas-pointer"
