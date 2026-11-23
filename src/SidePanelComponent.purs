@@ -149,8 +149,8 @@ openGamesComponent =
 
 openingSymbol :: Message.Opening -> String
 openingSymbol Message.Cross = "x"
-openingSymbol Message.TwoCrosses = "xx"
 openingSymbol Message.TripleCross = "𝈛"
+openingSymbol Message.QuadrupleCross = "⁜"
 
 highVolatilityThreshold :: Number
 highVolatilityThreshold = 0.06

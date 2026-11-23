@@ -65,7 +65,7 @@ type GameTime = { total :: Int, increment :: Int }
 
 type TimeLeft = { red :: Int, black :: Int }
 
-data Opening = Cross | TwoCrosses | TripleCross
+data Opening = Cross | TripleCross | QuadrupleCross
 
 derive instance Generic Opening _
 
@@ -76,15 +76,26 @@ instance Show Opening where
 
 instance EncodeJson Opening where
   encodeJson Cross = encodeJson "Cross"
-  encodeJson TwoCrosses = encodeJson "TwoCrosses"
   encodeJson TripleCross = encodeJson "TripleCross"
+  encodeJson QuadrupleCross = encodeJson "QuadrupleCross"
 
 instance DecodeJson Opening where
   decodeJson json = decodeJson json >>= case _ of
     "Cross" -> Right Cross
-    "TwoCrosses" -> Right TwoCrosses
     "TripleCross" -> Right TripleCross
+    "QuadrupleCross" -> Right QuadrupleCross
     other -> Left $ UnexpectedValue $ encodeJson other
+
+-- | Whether the opening can be placed on a field of the given size. Mirrors
+-- | `InitialPosition::fits` on the server.
+openingFits :: Opening -> Int -> Int -> Boolean
+openingFits QuadrupleCross width height =
+  let
+    minSide = min width height
+    maxSide = max width height
+  in
+    minSide >= 18 && maxSide <= 2 * minSide
+openingFits _ _ _ = true
 
 type GameConfig = { size :: FieldSize, time :: GameTime, opening :: Opening }
 

@@ -509,13 +509,13 @@ createGameComponent =
                                   [ HP.disabled displayState.disabled
                                   , HE.onValueChange \val -> case val of
                                       "Cross" -> Hooks.put openingId Message.Cross
-                                      "TwoCrosses" -> Hooks.put openingId Message.TwoCrosses
                                       "TripleCross" -> Hooks.put openingId Message.TripleCross
+                                      "QuadrupleCross" -> Hooks.put openingId Message.QuadrupleCross
                                       _ -> pure unit
                                   ]
                                   [ HH.option [ HP.value "Cross", HP.selected (displayState.opening == Message.Cross) ] [ HH.text "Cross" ]
-                                  , HH.option [ HP.value "TwoCrosses", HP.selected (displayState.opening == Message.TwoCrosses) ] [ HH.text "Two Crosses" ]
                                   , HH.option [ HP.value "TripleCross", HP.selected (displayState.opening == Message.TripleCross) ] [ HH.text "Triple Cross" ]
+                                  , HH.option [ HP.value "QuadrupleCross", HP.selected (displayState.opening == Message.QuadrupleCross) ] [ HH.text "Quadruple Cross" ]
                                   ]
                               ]
                           ]
@@ -556,7 +556,7 @@ createGameComponent =
                             seconds <- getInput "seconds"
                             increment <- getInput "increment"
                             let totalTime = (minutes * 60) + seconds
-                            lift $ when (totalTime >= 30) $ Hooks.raise outputToken $ CreateGame
+                            lift $ when (totalTime >= 30 && Message.openingFits opening width height) $ Hooks.raise outputToken $ CreateGame
                               { size: { width, height }
                               , time: { total: totalTime, increment }
                               , opening
