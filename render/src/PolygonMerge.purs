@@ -3,7 +3,7 @@ module PolygonMerge (merge, connectHoles) where
 import Prelude
 
 import Data.Foldable (foldl)
-import Data.List (List(..), concatMap, filter, null, reverse, zip, (:))
+import Data.List (List(..), concatMap, filter, null, partition, zip, (:))
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map (Map)
 import Data.Map as Map
@@ -20,7 +20,7 @@ type Edge = Tuple Pos Pos
 connectHoles :: List Chain -> List (Tuple Chain (List Chain))
 connectHoles polygons =
   let
-    Tuple realPolygons holes = split (\p -> square p < 0) polygons
+    { yes: realPolygons, no: holes } = partition (\p -> square p < 0) polygons
   in
     if null holes then
       map (\p -> Tuple p Nil) realPolygons
@@ -47,18 +47,6 @@ connectHoles polygons =
                     )
                     holesWithBoundaryPos
           ) $ zip realPolygons polygonSets
-
--- | Splits a list into two lists based on a predicate.
--- | The first element of the tuple contains elements that satisfy the predicate.
--- | The second element contains elements that do not.
-split :: forall a. (a -> Boolean) -> List a -> Tuple (List a) (List a)
-split p xs = loop xs Nil Nil
-  where
-  loop :: List a -> List a -> List a -> Tuple (List a) (List a)
-  loop Nil accTrue accFalse = Tuple (reverse accTrue) (reverse accFalse)
-  loop (Cons y ys) accTrue accFalse =
-    if p y then loop ys (Cons y accTrue) accFalse
-    else loop ys accTrue (Cons y accFalse)
 
 -- | Merges polygons that share a common border.
 -- | Polygons must be ordered counter-clockwise.
@@ -90,7 +78,7 @@ merge polygons = reconstruct originalVertices adjMap Nil
 
   -- We keep a list of all original vertices to determine the order of output polygons.
   originalVertices :: List Pos
-  originalVertices = concatMap identity $ map NonEmptyList.toList polygons
+  originalVertices = concatMap NonEmptyList.toList polygons
 
 -- | Converts a polygon (list of points) into a list of directed edges.
 polyToEdges :: Chain -> List Edge

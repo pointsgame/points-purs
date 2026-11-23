@@ -234,7 +234,9 @@ surroundings surrounded' fullFill innerSurroundings fields =
 mergedSurroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
 mergedSurroundings surrounded' fullFill innerSurroundings fields = connectHoles $ merge $ surroundings surrounded' fullFill innerSurroundings fields
 
-polygonShift :: Partial => Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
+-- | Offsets of the polygon edge between two adjacent positions, so that the
+-- | filling covers the points on the edge.
+polygonShift :: Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
 polygonShift r pos nextPos =
   let
     dx = Tuple.fst pos - Tuple.fst nextPos
@@ -250,6 +252,8 @@ polygonShift r pos nextPos =
       0, 1 -> (rs /\ 0.0) /\ (rs /\ 0.0)
       (-1), 1 -> (r /\ 0.0) /\ (0.0 /\ -r)
       (-1), 0 -> (0.0 /\ -rs) /\ (0.0 /\ -rs)
+      -- Not adjacent: can happen only for a broken polygon, leave it as is.
+      _, _ -> (0.0 /\ 0.0) /\ (0.0 /\ 0.0)
 
 -- | Draws the field. The canvas area is expected to be cleared by the caller.
 draw :: DrawSettings -> Map.Map Pos Int -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
@@ -377,7 +381,7 @@ draw
           bindFlipped
             ( \(Tuple pos nextPos) ->
                 let
-                  shift1 /\ shift2 = UnsafePartial.unsafePartial $ polygonShift pointR pos nextPos
+                  shift1 /\ shift2 = polygonShift pointR pos nextPos
                 in
                   (fromPos pos + reflectShift shift1) : (fromPos nextPos + reflectShift shift2) : Nil
             )
