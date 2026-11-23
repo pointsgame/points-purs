@@ -30,10 +30,19 @@ fieldsToSgf :: NonEmptyList.NonEmptyList Field.Field -> String
 fieldsToSgf fields =
   let
     fieldsArray = Array.reverse $ Array.fromFoldable fields
-    emptyField = NonEmptyList.last fields
-    w = Field.width emptyField
-    h = Field.height emptyField
+    initialField = NonEmptyList.last fields
+    w = Field.width initialField
+    h = Field.height initialField
     header = "(;GM[40]SZ[" <> show w <> ":" <> show h <> "]RU[russian]"
+    playerToSgf = case _ of
+      Player.Red -> "W"
+      Player.Black -> "B"
+    -- Moves already on the initial field, e.g. an opening. They don't capture
+    -- anything, so there are no chains to write.
+    initialEntries = map (\(Tuple pos player) -> ";" <> playerToSgf player <> "[" <> posToSgf pos <> "]")
+      $ Array.reverse
+      $ Array.fromFoldable
+      $ Field.moves initialField
     moveEntries = Array.mapMaybe identity $ Array.mapWithIndex
       ( \i field ->
           if i == 0 then Maybe.Nothing
@@ -46,9 +55,7 @@ fieldsToSgf fields =
                 Maybe.Nothing -> Maybe.Nothing
                 Maybe.Just (Tuple pos player) ->
                   let
-                    color = case player of
-                      Player.Red -> "W"
-                      Player.Black -> "B"
+                    color = playerToSgf player
                     chainsStr = case chains of
                       List.Nil -> ""
                       _ -> "." <> String.joinWith "" (Array.fromFoldable $ map chainToSgf chains)
@@ -57,4 +64,4 @@ fieldsToSgf fields =
       )
       fieldsArray
   in
-    header <> String.joinWith "" (Array.fromFoldable moveEntries) <> ")"
+    header <> String.joinWith "" (initialEntries <> moveEntries) <> ")"

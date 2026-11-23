@@ -86,17 +86,6 @@ instance DecodeJson Opening where
     "QuadrupleCross" -> Right QuadrupleCross
     other -> Left $ UnexpectedValue $ encodeJson other
 
--- | Whether the opening can be placed on a field of the given size. Mirrors
--- | `InitialPosition::fits` on the server.
-openingFits :: Opening -> Int -> Int -> Boolean
-openingFits QuadrupleCross width height =
-  let
-    minSide = min width height
-    maxSide = max width height
-  in
-    minSide >= 18 && maxSide <= 2 * minSide
-openingFits _ _ _ = true
-
 type GameConfig = { size :: FieldSize, time :: GameTime, opening :: Opening }
 
 type Coordinate = { x :: Int, y :: Int }

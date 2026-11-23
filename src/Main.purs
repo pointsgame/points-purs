@@ -56,6 +56,7 @@ import Halogen.Svg.Attributes.StrokeLineCap (StrokeLineCap(..))
 import Halogen.Svg.Elements as SvgElements
 import Halogen.VDom.Driver (runUI)
 import Message as Message
+import Opening as Opening
 import Player as Player
 import Render (DrawSettings, defaultDrawSettings)
 import SidePanelComponent as SidePanelComponent
@@ -556,7 +557,7 @@ createGameComponent =
                             seconds <- getInput "seconds"
                             increment <- getInput "increment"
                             let totalTime = (minutes * 60) + seconds
-                            lift $ when (totalTime >= 30 && Message.openingFits opening width height) $ Hooks.raise outputToken $ CreateGame
+                            lift $ when (totalTime >= 30 && Opening.fits opening width height) $ Hooks.raise outputToken $ CreateGame
                               { size: { width, height }
                               , time: { total: totalTime, increment }
                               , opening
@@ -581,7 +582,7 @@ createGameComponent =
                             seconds <- getInput "seconds"
                             increment <- getInput "increment"
                             let totalTime = (minutes * 60) + seconds
-                            lift $ Hooks.raise outputToken $ CreateLocalGame
+                            lift $ when (Opening.fits opening width height) $ Hooks.raise outputToken $ CreateLocalGame
                               { size: { width, height }
                               , time: { total: totalTime, increment }
                               , opening
@@ -878,14 +879,22 @@ type PersistentMove = { x :: Int, y :: Int, player :: String }
 
 -- | A local game in a form that can be persisted. The whole undo/redo history
 -- | is captured by the deepest field's move sequence (replayed against the
--- | field size from `config`) together with the number of moves currently
--- | undone.
+-- | field size from `config`) together with the number of opening moves, which
+-- | make the initial field and can't be undone, and the number of moves
+-- | currently undone.
 type PersistentLocalGame =
   { config :: Message.GameConfig
   , timeLeft :: { red :: Number, black :: Number }
   , moves :: Array PersistentMove
+  , opening :: Maybe Int
   , redo :: Int
   }
+
+-- | Puts the opening moves on the field. Moves alternate between the players
+-- | starting with the first one.
+putOpening :: Array (Tuple Int Int) -> Field.Field -> Field.Field
+putOpening moves field =
+  Array.foldl (\f pos -> Maybe.fromMaybe f $ Field.putNextPoint pos f) field moves
 
 toPersistentLocalGame :: LocalGame -> PersistentLocalGame
 toPersistentLocalGame game =
@@ -898,6 +907,7 @@ toPersistentLocalGame game =
         $ Field.moves
         $ Maybe.fromMaybe (NonEmptyList.head game.fields)
         $ List.last game.redoFields
+  , opening: Maybe.Just $ List.length $ Field.moves $ NonEmptyList.last game.fields
   , redo: List.length game.redoFields
   }
 
@@ -905,12 +915,17 @@ restoreLocalGame :: Instant.Instant -> PersistentLocalGame -> Maybe LocalGame
 restoreLocalGame now persistent = do
   moves <- traverse (\move -> Tuple (Tuple move.x move.y) <$> decodePlayer move.player) persistent.moves
   let
+    { before: openingMoves, after: gameMoves } = Array.splitAt (Maybe.fromMaybe 0 persistent.opening) moves
+    putMove field (Tuple pos player) = Field.putPoint pos player field
+    initialField = Array.foldl (\field move -> Maybe.fromMaybe field $ putMove field move)
+      (Field.emptyField persistent.config.size.width persistent.config.size.height)
+      openingMoves
     allFields = Array.foldl
-      ( \fields (Tuple pos player) ->
-          Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ Field.putPoint pos player $ NonEmptyList.head fields
+      ( \fields move ->
+          Maybe.maybe fields (_ `NonEmptyList.cons` fields) $ putMove (NonEmptyList.head fields) move
       )
-      (NonEmptyList.singleton $ Field.emptyField persistent.config.size.width persistent.config.size.height)
-      moves
+      (NonEmptyList.singleton initialField)
+      gameMoves
     redo = clamp 0 (NonEmptyList.length allFields - 1) persistent.redo
   fields <- NonEmptyList.fromList $ NonEmptyList.drop redo allFields
   pure
@@ -1589,7 +1604,8 @@ appComponent =
                             -- belongs to the previous local game.
                             Hooks.put aiThinkingId false
                             now <- liftEffect $ Now.now
-                            let field = Field.emptyField config.size.width config.size.height
+                            openingMoves <- liftEffect $ Opening.moves config.opening config.size.width config.size.height
+                            let field = putOpening openingMoves $ Field.emptyField config.size.width config.size.height
                             putLocalGame stateId localGameId
                               { config
                               , puttingTime: now

@@ -30,6 +30,8 @@ package:
     - datetime
     - now
     - halogen-svg-elems
+    - random
+    - tailrec
 workspace:
   backend:
     cmd: "purs-backend-es"
