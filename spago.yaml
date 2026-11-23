@@ -3,6 +3,7 @@ package:
   dependencies:
     - field
     - render
+    - board
     - console
     - effect
     - prelude

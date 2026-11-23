@@ -1,0 +1,30 @@
+package:
+  name: board
+  dependencies:
+    - field
+    - render
+    - prelude
+    - effect
+    - aff
+    - refs
+    - arrays
+    - foldable-traversable
+    - integers
+    - lists
+    - maybe
+    - newtype
+    - numbers
+    - ordered-collections
+    - transformers
+    - tuples
+    - unsafe-coerce
+    - canvas
+    - css
+    - halogen
+    - halogen-css
+    - halogen-hooks
+    - web-dom
+    - web-events
+    - web-html
+    - web-touchevents
+    - web-uievents

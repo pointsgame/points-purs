@@ -15,6 +15,43 @@
           "dependencies": []
         }
       },
+      "board": {
+        "path": "board",
+        "core": {
+          "dependencies": [
+            "aff",
+            "arrays",
+            "canvas",
+            "css",
+            "effect",
+            "field",
+            "foldable-traversable",
+            "halogen",
+            "halogen-css",
+            "halogen-hooks",
+            "integers",
+            "lists",
+            "maybe",
+            "newtype",
+            "numbers",
+            "ordered-collections",
+            "prelude",
+            "refs",
+            "render",
+            "transformers",
+            "tuples",
+            "unsafe-coerce",
+            "web-dom",
+            "web-events",
+            "web-html",
+            "web-touchevents",
+            "web-uievents"
+          ]
+        },
+        "test": {
+          "dependencies": []
+        }
+      },
       "field": {
         "path": "field",
         "core": {
@@ -44,6 +81,7 @@
             "argonaut",
             "argonaut-generic",
             "arrays",
+            "board",
             "console",
             "coroutines",
             "datetime",
