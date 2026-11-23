@@ -2,7 +2,6 @@ module Render where
 
 import Prelude
 
-import Control.Bind (bindFlipped)
 import Data.Foldable (foldl, foldr, for_, traverse_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
@@ -388,15 +387,18 @@ draw
       reflectShift (x /\ y) = x * (if hReflection then -1.0 else 1.0) /\ y * (if vReflection then -1.0 else 1.0)
       toPolygon surrounding =
         if extendedFill then
-          bindFlipped
-            ( \(Tuple pos nextPos) ->
+          -- Two shifted points per edge, including the closing edge from the last
+          -- position to the first one. Built right to left with `foldr`, carrying
+          -- the next position, so that every point is consed only once.
+          Tuple.fst $ foldr
+            ( \pos (acc /\ nextPos) ->
                 let
                   shift1 /\ shift2 = polygonShift pointR pos nextPos
                 in
-                  (fromPos pos + reflectShift shift1) : (fromPos nextPos + reflectShift shift2) : Nil
+                  ((fromPos pos + reflectShift shift1) : (fromPos nextPos + reflectShift shift2) : acc) /\ pos
             )
-            $ List.zip (NonEmptyList.toList surrounding)
-            $ NonEmptyList.tail surrounding <> List.singleton (NonEmptyList.head surrounding)
+            (Nil /\ NonEmptyList.head surrounding)
+            (NonEmptyList.toList surrounding)
         else
           map fromPos $ NonEmptyList.toList surrounding
       tracePolygon chain = case toPolygon chain of
