@@ -3,7 +3,7 @@ module Render where
 import Prelude
 
 import Control.Bind (bindFlipped)
-import Data.Foldable (foldr, for_, traverse_)
+import Data.Foldable (foldl, foldr, for_, traverse_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
 import Data.List (List(..), mapMaybe, (:))
@@ -234,6 +234,40 @@ surroundings surrounded' fullFill innerSurroundings fields =
 mergedSurroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
 mergedSurroundings surrounded' fullFill innerSurroundings fields = connectHoles $ merge $ surroundings surrounded' fullFill innerSurroundings fields
 
+-- | A bar of the extended filling connecting a point with its east (`HBar`)
+-- | or south (`VBar`) neighbour.
+data Bar = HBar Player Pos | VBar Player Pos
+
+-- | Bars of the extended filling between adjacent points of a player that
+-- | don't border any filled area. They depend only on the field, so they are
+-- | computed once per move rather than on every redraw.
+extendedFillBars :: DrawSettings -> Map.Map Pos Int -> Field -> List Bar
+extendedFillBars { fullFill, extendedFill, innerSurroundings } surrounded' field
+  | fullFill && extendedFill = foldl addBars Nil $ Field.moves field
+      where
+      addBars acc (Tuple pos player)
+        | innerSurroundings || not (Map.member pos surrounded') =
+            let
+              -- Whether `pos'` is the player's point or was surrounded earlier
+              -- than `pos` (or `pos` was never surrounded).
+              isOwner pos' = Field.isPlayer field pos' player
+                || Maybe.maybe false (\i -> Maybe.maybe true (i < _) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
+              horizontal = Field.isPlayer field (Field.e pos) player
+                && not (isOwner $ Field.n pos)
+                && not (isOwner $ Field.s pos)
+                && not (isOwner $ Field.ne pos)
+                && not (isOwner $ Field.se pos)
+              vertical = Field.isPlayer field (Field.s pos) player
+                && not (isOwner $ Field.w pos)
+                && not (isOwner $ Field.e pos)
+                && not (isOwner $ Field.sw pos)
+                && not (isOwner $ Field.se pos)
+              acc' = if horizontal then HBar player pos : acc else acc
+            in
+              if vertical then VBar player pos : acc' else acc'
+        | otherwise = acc
+  | otherwise = Nil
+
 -- | Offsets of the polygon edge between two adjacent positions, so that the
 -- | filling covers the points on the edge.
 polygonShift :: Number -> Pos -> Pos -> (Number /\ Number) /\ (Number /\ Number)
@@ -256,7 +290,7 @@ polygonShift r pos nextPos =
       _, _ -> (0.0 /\ 0.0) /\ (0.0 /\ 0.0)
 
 -- | Draws the field. The canvas area is expected to be cleared by the caller.
-draw :: DrawSettings -> Map.Map Pos Int -> List (Chain /\ List Chain) -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
+draw :: DrawSettings -> List (Chain /\ List Chain) -> List Bar -> Number -> Number -> NonEmptyList Field -> Context2D -> Effect Unit
 draw
   drawSettings@
   { hReflection
@@ -264,16 +298,14 @@ draw
   , gridThickness
   , gridColor
   , fillingAlpha
-  , fullFill
   , extendedFill
-  , innerSurroundings
   , coordsTop
   , coordsRight
   , coordsBottom
   , coordsLeft
   }
-  surrounded'
   surroundings'
+  bars
   width
   height
   fields
@@ -335,44 +367,22 @@ draw
       setStrokeStyle context $ color player
       circle context (fromPosX x) (fromPosY y) (pointR * 5.0 / 3.0)
       stroke context
-    -- Render lines, a single path per player: this is faster than filling
-    -- every rectangle separately.
+    -- Render bars, a single path per player.
     setGlobalAlpha context fillingAlpha
-    when (fullFill && extendedFill) do
-      let
-        rs = pointR / sqrt 2.0
-        -- Rectangles are added with normalized coordinates so that all of them
-        -- have the same winding and overlaps are filled only once.
-        hBar (x1 /\ y) (x2 /\ _) = rect context { x: min x1 x2, y: y - rs, width: abs (x2 - x1), height: 2.0 * rs }
-        vBar (x /\ y1) (_ /\ y2) = rect context { x: x - rs, y: min y1 y2, width: 2.0 * rs, height: abs (y2 - y1) }
-      for_ players \player -> do
-        setFillStyle context $ color player
-        beginPath context
-        -- Filter by player first: the body below is evaluated strictly even
-        -- when it's not run, so it shouldn't be built for other player's moves.
-        for_ (List.filter ((_ == player) <<< Tuple.snd) $ Field.moves headField) \(Tuple pos _) -> when (innerSurroundings || not (Map.member pos surrounded')) do
-          let
-            -- Whether `pos'` is the player's point or was surrounded earlier
-            -- than `pos` (or `pos` was never surrounded).
-            isOwner pos' = Field.isPlayer headField pos' player
-              || Maybe.maybe false (\i -> Maybe.maybe true (i < _) $ Map.lookup pos surrounded') (Map.lookup pos' surrounded')
-          when
-            ( Field.isPlayer headField (Field.e pos) player
-                && not (isOwner $ Field.n pos)
-                && not (isOwner $ Field.s pos)
-                && not (isOwner $ Field.ne pos)
-                && not (isOwner $ Field.se pos)
-            )
-            $ hBar (fromPos pos) (fromPos $ Field.e pos)
-          when
-            ( Field.isPlayer headField (Field.s pos) player
-                && not (isOwner $ Field.w pos)
-                && not (isOwner $ Field.e pos)
-                && not (isOwner $ Field.sw pos)
-                && not (isOwner $ Field.se pos)
-            )
-            $ vBar (fromPos pos) (fromPos $ Field.s pos)
-        fill context
+    let
+      rs = pointR / sqrt 2.0
+      -- Rectangles are added with normalized coordinates so that all of them
+      -- have the same winding and overlaps are filled only once.
+      hBar (x1 /\ y) (x2 /\ _) = rect context { x: min x1 x2, y: y - rs, width: abs (x2 - x1), height: 2.0 * rs }
+      vBar (x /\ y1) (_ /\ y2) = rect context { x: x - rs, y: min y1 y2, width: 2.0 * rs, height: abs (y2 - y1) }
+    for_ players \player -> do
+      setFillStyle context $ color player
+      beginPath context
+      for_ bars case _ of
+        HBar player' pos | player' == player -> hBar (fromPos pos) (fromPos $ Field.e pos)
+        VBar player' pos | player' == player -> vBar (fromPos pos) (fromPos $ Field.s pos)
+        _ -> pure unit
+      fill context
     -- Rendering surroundings.
     let
       reflectShift (x /\ y) = x * (if hReflection then -1.0 else 1.0) /\ y * (if vReflection then -1.0 else 1.0)

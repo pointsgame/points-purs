@@ -31,7 +31,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HQE
-import Render (DrawSettings, draw, drawPointer, layout, mergedSurroundings, surrounded)
+import Render (DrawSettings, draw, drawPointer, extendedFillBars, layout, mergedSurroundings, surrounded)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (clientHeight, clientWidth)
 import Web.DOM.Node (parentElement)
@@ -176,6 +176,15 @@ fieldComponent =
         } $ flip Hooks.useMemo \_ ->
         mergedSurroundings (Map.keys surrounded') input.drawSettings.fullFill input.drawSettings.innerSurroundings input.fields
 
+    bars <-
+      Hooks.captures
+        { field: NonEmptyList.head input.fields
+        , fullFill: input.drawSettings.fullFill
+        , extendedFill: input.drawSettings.extendedFill
+        , innerSurroundings: input.drawSettings.innerSurroundings
+        } $ flip Hooks.useMemo \_ ->
+        extendedFillBars input.drawSettings surrounded' (NonEmptyList.head input.fields)
+
     size /\ sizeId <- Hooks.useState Nothing
 
     transform /\ transformId <- Hooks.useState identityTransform
@@ -241,7 +250,7 @@ fieldComponent =
         withContext context do
           -- Snap the pan offset to whole device pixels so grid lines stay crisp.
           translate context { translateX: -(toNumber $ round $ t.x * dpr), translateY: -(toNumber $ round $ t.y * dpr) }
-          draw input.drawSettings surrounded' surroundings (width * t.scale) (height * t.scale) input.fields context
+          draw input.drawSettings surroundings bars (width * t.scale) (height * t.scale) input.fields context
         bind (getCanvasElementById "canvas-pointer") $ traverse_ $ \canvasPointer -> do
           setCanvasSize canvasPointer
       pure Nothing
