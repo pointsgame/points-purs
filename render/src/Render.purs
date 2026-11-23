@@ -3,7 +3,7 @@ module Render where
 import Prelude
 
 import Control.Bind (bindFlipped)
-import Data.Foldable (traverse_, for_)
+import Data.Foldable (foldr, for_, traverse_)
 import Data.Functor (voidRight)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
@@ -12,6 +12,7 @@ import Data.List as List
 import Data.List.NonEmpty (NonEmptyList)
 import Data.List.NonEmpty as NonEmptyList
 import Data.Map as Map
+import Data.Maybe (Maybe(..))
 import Data.Maybe as Maybe
 import Data.Number (pi, sqrt)
 import Data.Set as Set
@@ -180,9 +181,6 @@ surroundings surrounded' fullFill innerSurroundings fields =
       else
         surrounded'
     included pos = not $ Set.member pos excluded
-    chains = do
-      field <- NonEmptyList.toList fields
-      List.filter (included <<< NonEmptyList.head) $ Field.lastSurroundChains field
     -- Quadrants around a point, counter-clockwise: two orthogonal neighbours
     -- and the diagonal neighbour between them.
     quadrants =
@@ -191,22 +189,42 @@ surroundings surrounded' fullFill innerSurroundings fields =
         : (Field.n /\ Field.nw /\ Field.w)
         : (Field.w /\ Field.sw /\ Field.s)
         : Nil
-    triangles field pos player = do
-      a /\ d /\ b <- quadrants
-      let
-        owns dir = Field.isOwner field (dir pos) player
-        triangle dir1 dir2 = NonEmptyList.cons' pos $ dir1 pos : dir2 pos : Nil
-        triangleIf cond dir1 dir2 = if cond then List.singleton $ triangle dir1 dir2 else Nil
-      if owns a && owns b then
-        List.singleton $ triangle a b
+    -- Triangles filling the space between the point and its neighbours,
+    -- prepended to the accumulator.
+    addTriangles field pos player acc = foldr
+      ( \(a /\ d /\ b) acc' ->
+          let
+            owns dir = Field.isOwner field (dir pos) player
+            triangle dir1 dir2 = NonEmptyList.cons' pos $ dir1 pos : dir2 pos : Nil
+            consIf cond dir1 dir2 rest = if cond then triangle dir1 dir2 : rest else rest
+          in
+            if owns a && owns b then
+              triangle a b : acc'
+            else
+              consIf (owns a && owns d) a d $ consIf (owns d && owns b) d b acc'
+      )
+      acc
+      quadrants
+    fills =
+      if fullFill then
+        foldr
+          ( \(field /\ lastMove) acc -> case lastMove of
+              Just (pos /\ player) | included pos -> addTriangles field pos player acc
+              _ -> acc
+          )
+          Nil
+          $ List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields)
       else
-        triangleIf (owns a && owns d) a d <> triangleIf (owns d && owns b) d b
-    fills = do
-      field /\ lastMove <- List.zip (NonEmptyList.tail fields) (map (List.head <<< Field.moves) $ NonEmptyList.toList fields)
-      pos /\ player <- List.fromFoldable lastMove
-      if included pos then triangles field pos player else Nil
+        Nil
   in
-    chains <> if fullFill then fills else Nil
+    -- Built with `foldr` so that every chain is consed onto the result only once.
+    foldr
+      ( \field acc ->
+          foldr (\chain acc' -> if included (NonEmptyList.head chain) then chain : acc' else acc') acc
+            $ Field.lastSurroundChains field
+      )
+      fills
+      $ NonEmptyList.toList fields
 
 mergedSurroundings :: Set.Set Pos -> Boolean -> Boolean -> NonEmptyList Field -> List (Chain /\ List Chain)
 mergedSurroundings surrounded' fullFill innerSurroundings fields = connectHoles $ merge $ surroundings surrounded' fullFill innerSurroundings fields
